@@ -92,6 +92,22 @@ export const CodeViewer: React.FC = () => {
         </button>
       </div>
 
+      {/* Cloudflare Deployment Guidance Callout */}
+      <div className="bg-slate-900/90 border border-amber-500/30 rounded-xl p-4 flex items-start space-x-3 text-xs">
+        <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+        <div className="space-y-1">
+          <p className="font-bold text-amber-300">
+            Deploying to Cloudflare? Here is what you need to know:
+          </p>
+          <p className="text-slate-300 leading-relaxed">
+            • <strong>Cloudflare Worker (Backend + Cron + KV):</strong> Deploy this with <code className="text-cyan-300 font-mono bg-slate-950 px-1 py-0.5 rounded">npx wrangler deploy</code>. It uses <code className="text-purple-300 font-mono bg-slate-950 px-1 py-0.5 rounded">src/index.ts</code> as its entry point. It does <em>not</em> need or use <code className="text-slate-400 font-mono">index.html</code>.
+          </p>
+          <p className="text-slate-300 leading-relaxed">
+            • <strong>Cloudflare Pages (Frontend Web App):</strong> If you are deploying this visual dashboard to Cloudflare Pages, use build command <code className="text-emerald-300 font-mono bg-slate-950 px-1 py-0.5 rounded">npm run build</code> and output directory <code className="text-emerald-300 font-mono bg-slate-950 px-1 py-0.5 rounded">dist</code>. The frontend entry point <code className="text-slate-200 font-mono">src/main.tsx</code> mounts <code className="text-slate-200 font-mono">src/App.tsx</code>.
+          </p>
+        </div>
+      </div>
+
       {/* Code Browser Container */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
         {/* File Tabs & Header */}

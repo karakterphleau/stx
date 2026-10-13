@@ -597,9 +597,19 @@ This worker monitors the stock market for volatile equities, calculates composit
 
 ---
 
-## 🚀 Quick Start Deployment (3 Steps)
+## ⚠️ Important: Cloudflare Workers vs Cloudflare Pages
+
+If you saw an error about \`index.html\` or \`/src/main.tsx\`:
+- **A Cloudflare Worker (this project) is a backend serverless script.** It does **NOT** use or need \`index.html\` or \`main.tsx\`!
+- Its entry point is **\`src/index.ts\`** (defined in \`wrangler.toml\`).
+- If Cloudflare is asking for \`index.html\`, you likely selected **Cloudflare Pages** instead of **Cloudflare Workers**.
+
+---
+
+## 🚀 How to Deploy the Worker to Cloudflare (3 Steps)
 
 ### Step 1: Install Dependencies
+In the exported worker directory:
 \`\`\`bash
 npm install
 \`\`\`
@@ -626,12 +636,23 @@ npx wrangler kv:namespace create STOCKS_KV --preview
 
 ---
 
-### Step 3: Deploy to Cloudflare
+### Step 3: Deploy to Cloudflare Workers
 \`\`\`bash
 npx wrangler deploy
 \`\`\`
 
-Your worker will be live with both Cron Triggers and HTTP endpoints!
+Your worker is now deployed and running on Cloudflare's global edge! It will automatically execute on the cron schedule and expose the HTTP REST endpoints.
+
+---
+
+## 🌐 How to Deploy the Web Dashboard to Cloudflare Pages (Optional)
+
+If you also want to host the interactive frontend dashboard:
+1. Connect this git repository to **Cloudflare Pages**.
+2. Set **Framework Preset**: \`Vite\`
+3. Set **Build command**: \`npm run build\`
+4. Set **Build output directory**: \`dist\`
+*(The required entry files \`index.html\`, \`src/main.tsx\`, and \`src/App.tsx\` are present and compile cleanly to \`dist\`!)*
 
 ---
 
@@ -662,27 +683,5 @@ curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"
 | \`GET\` | \`/api/ticker/:symbol\` | Reads snapshot for a specific ticker (e.g., \`/api/ticker/NVDA\`) |
 | \`GET\` | \`/api/kv/keys\` | Lists keys stored in the KV namespace |
 | \`GET\` | \`/api/kv/:key\` | Reads any raw key from the KV namespace |
-
----
-
-## 🗄️ KV Keys Schema
-
-1. **\`latest_volatile_stocks\`**:
-   - Stores the latest \`VolatilityScanResult\` JSON object.
-   - Includes timestamp, session, execution duration, and top volatile stocks.
-2. **\`history:<unix_timestamp>\`**:
-   - Point-in-time snapshot with \`expirationTtl: 604800\` (7-day automatic expiry).
-3. **\`ticker:<symbol>:latest\`**:
-   - Direct record for fast lookup per stock with 24h TTL.
-4. **\`scan_metadata\`**:
-   - Quick telemetry summary (last scan time, ticker count, top mover).
-
----
-
-## 🔔 Optional Discord / Slack Alerts
-To enable instant notifications when a stock swings >10% intraday:
-\`\`\`bash
-npx wrangler secret put ALERT_WEBHOOK_URL
-\`\`\`
-Paste your Discord or Slack Incoming Webhook URL.
 `;
+
