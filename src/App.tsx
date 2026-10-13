@@ -68,7 +68,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+    <div className="min-h-screen bg-[#08090d] text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
       {/* Interactive Top Header */}
       <Header
         onScanTriggered={handleTriggerScan}
@@ -108,20 +108,20 @@ export default function App() {
       </main>
 
       {/* Footer Info */}
-      <footer className="border-t border-slate-900 bg-slate-950/80 py-5 text-xs text-slate-500">
+      <footer className="border-t border-white/[0.06] bg-[#090b10] py-4 text-xs text-slate-400">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             <span className="text-slate-400">
-              Cloudflare Worker Engine • Automated Stock Volatility Tracking with KV Namespace Persistence
+              Cloudflare Worker Engine · Automated Stock Volatility Tracking with KV Namespace Persistence
             </span>
           </div>
-          <div className="flex items-center space-x-4 font-mono text-[11px] text-slate-400">
+          <div className="flex items-center space-x-3 font-mono text-[11px] text-slate-400">
             <span>Cron: */5 13-20 * * 1-5</span>
-            <span>•</span>
+            <span className="text-slate-600">·</span>
             <span>KV: STOCKS_KV</span>
-            <span>•</span>
-            <span>Compatibility: 2024-04-01</span>
+            <span className="text-slate-600">·</span>
+            <span>Edge V8</span>
           </div>
         </div>
       </footer>

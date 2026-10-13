@@ -33,11 +33,11 @@ export const LogsConsole: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Console Top Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl">
+      <div className="bg-[#0e1117] border border-white/[0.08] rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl">
         <div className="flex items-center space-x-2.5">
           <Terminal className="w-4 h-4 text-orange-400" />
-          <h2 className="text-sm font-bold text-white tracking-wide">
-            Cloudflare Worker Runtime Logs &amp; Tail Stream
+          <h2 className="text-sm font-semibold text-white tracking-tight">
+            Cloudflare Worker Runtime Logs
           </h2>
           <span className="text-[11px] font-mono text-slate-500">
             ({logs.length} entries)

@@ -2,18 +2,19 @@ import React, { useState } from 'react';
 import {
   TrendingUp,
   TrendingDown,
-  Flame,
-  AlertTriangle,
   Activity,
   Plus,
-  ArrowUpRight,
   Database,
-  BarChart3,
-  Clock,
+  Search,
+  ArrowUpRight,
+  ArrowDownRight,
+  Split,
   Layers,
+  ChevronRight,
+  Clock,
+  Sparkles,
 } from 'lucide-react';
 import { VolatilityScanResult, StockQuote } from '../services/marketScanner';
-import { injectShock } from '../services/marketScanner';
 import { workerSimulatorInstance } from '../services/workerSimulator';
 
 interface VolatilityRadarProps {
@@ -28,7 +29,9 @@ export const VolatilityRadar: React.FC<VolatilityRadarProps> = ({
   onRefresh,
 }) => {
   const [newTickerInput, setNewTickerInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [filterSector, setFilterSector] = useState<string>('ALL');
+  const [viewMode, setViewMode] = useState<'split' | 'positive' | 'negative' | 'combined'>('split');
 
   const handleAddTicker = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,302 +46,424 @@ export const VolatilityRadar: React.FC<VolatilityRadarProps> = ({
     }
   };
 
-  const stocks = scanResult?.topVolatileStocks || [];
-  const sectors = ['ALL', ...Array.from(new Set(stocks.map((s) => s.sector)))];
+  const allStocks = scanResult?.topVolatileStocks || [];
 
-  const filteredStocks = filterSector === 'ALL'
-    ? stocks
-    : stocks.filter((s) => s.sector === filterSector);
+  // Filter by sector and search query
+  const filteredStocks = allStocks.filter((s) => {
+    const matchesSector = filterSector === 'ALL' || s.sector === filterSector;
+    const matchesSearch =
+      s.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSector && matchesSearch;
+  });
 
-  const topMover = scanResult?.highestVolatile;
+  const positiveStocks = filteredStocks.filter((s) => s.changePercent >= 0);
+  const negativeStocks = filteredStocks.filter((s) => s.changePercent < 0);
+
+  const sectors = ['ALL', ...Array.from(new Set(allStocks.map((s) => s.sector)))];
+
+  const bestGainer = [...filteredStocks]
+    .filter((s) => s.changePercent >= 0)
+    .sort((a, b) => b.changePercent - a.changePercent)[0] || null;
+
+  const worstLoser = [...filteredStocks]
+    .filter((s) => s.changePercent < 0)
+    .sort((a, b) => a.changePercent - b.changePercent)[0] || null;
+
+  const avgPositiveGain = positiveStocks.length > 0
+    ? (positiveStocks.reduce((acc, s) => acc + s.changePercent, 0) / positiveStocks.length).toFixed(2)
+    : '0.00';
+
+  const avgNegativeDrop = negativeStocks.length > 0
+    ? (negativeStocks.reduce((acc, s) => acc + s.changePercent, 0) / negativeStocks.length).toFixed(2)
+    : '0.00';
 
   return (
     <div className="space-y-6">
-      {/* Overview Stat Cards */}
+      {/* Sleek Market Overview Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Top Volatile Asset */}
-        <div className="bg-gradient-to-br from-slate-900 to-slate-850 border border-amber-500/30 rounded-xl p-4.5 relative overflow-hidden shadow-lg shadow-black/20">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="flex items-center justify-between text-xs font-medium text-slate-400 mb-2">
-            <span className="flex items-center gap-1.5 text-amber-400 font-semibold">
-              <Flame className="w-4 h-4 fill-amber-400 text-amber-500" />
-              #1 Volatility Leader
+        {/* Top Bullish Gainer Card */}
+        <div className="bg-[#0e1117] border border-white/[0.08] rounded-xl p-4.5 hover:border-emerald-500/30 transition-all">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+            <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+              <TrendingUp className="w-3.5 h-3.5" /> Top Gainer
             </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/20 text-amber-300 font-bold">
-              SCORE: {topMover ? topMover.volatilityScore : '0.0'}
+            <span className="text-[11px] font-mono text-slate-400">
+              {positiveStocks.length} gainers
             </span>
           </div>
 
-          {topMover ? (
+          {bestGainer ? (
             <div>
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black text-white tracking-tight font-mono">
-                  {topMover.symbol}
+                <span className="text-xl font-bold font-mono text-white tracking-tight">
+                  {bestGainer.symbol}
                 </span>
-                <span className="text-xs text-slate-300 font-medium truncate max-w-[140px]">
-                  {topMover.name}
+                <span className="text-sm font-bold font-mono text-emerald-400 flex items-center">
+                  <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" />+{bestGainer.changePercent}%
                 </span>
               </div>
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800">
-                <div className="flex items-center space-x-1.5">
-                  <span className="text-xs text-slate-400 font-mono">Spread:</span>
-                  <span className="text-sm font-bold font-mono text-amber-400">
-                    +{topMover.intradaySpreadPercent}%
-                  </span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  {topMover.changePercent >= 0 ? (
-                    <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : (
-                    <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
-                  )}
-                  <span
-                    className={`text-xs font-bold font-mono ${
-                      topMover.changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                    }`}
-                  >
-                    {topMover.changePercent >= 0 ? '+' : ''}
-                    {topMover.changePercent}%
-                  </span>
-                </div>
+              <div className="flex items-center justify-between text-xs text-slate-400 mt-2 pt-2 border-t border-white/[0.06]">
+                <span className="truncate max-w-[120px]">{bestGainer.name}</span>
+                <span className="font-mono text-amber-400 font-medium">
+                  +{bestGainer.intradaySpreadPercent}% spread
+                </span>
               </div>
             </div>
           ) : (
-            <p className="text-sm text-slate-500 italic mt-3">Awaiting first scan trigger...</p>
+            <div className="text-xs text-slate-500 py-2">No gainers detected in scan</div>
           )}
         </div>
 
-        {/* Average Volatility Spread */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4.5 relative overflow-hidden">
-          <div className="flex items-center justify-between text-xs font-medium text-slate-400 mb-2">
-            <span className="flex items-center gap-1.5 text-slate-300">
-              <BarChart3 className="w-4 h-4 text-cyan-400" />
-              Avg Top-10 Spread
+        {/* Top Bearish Decline Card */}
+        <div className="bg-[#0e1117] border border-white/[0.08] rounded-xl p-4.5 hover:border-rose-500/30 transition-all">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+            <span className="flex items-center gap-1.5 text-rose-400 font-medium">
+              <TrendingDown className="w-3.5 h-3.5" /> Top Decline
             </span>
-            <span className="text-[11px] font-mono text-cyan-400">Intraday Range</span>
+            <span className="text-[11px] font-mono text-slate-400">
+              {negativeStocks.length} losers
+            </span>
           </div>
-          <div className="mt-1">
-            <div className="text-2xl font-black text-white font-mono">
-              {scanResult ? `${scanResult.averageSpreadPercent}%` : '--'}
+
+          {worstLoser ? (
+            <div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-xl font-bold font-mono text-white tracking-tight">
+                  {worstLoser.symbol}
+                </span>
+                <span className="text-sm font-bold font-mono text-rose-400 flex items-center">
+                  <ArrowDownRight className="w-3.5 h-3.5 mr-0.5" />{worstLoser.changePercent}%
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-400 mt-2 pt-2 border-t border-white/[0.06]">
+                <span className="truncate max-w-[120px]">{worstLoser.name}</span>
+                <span className="font-mono text-amber-400 font-medium">
+                  +{worstLoser.intradaySpreadPercent}% spread
+                </span>
+              </div>
             </div>
-            <p className="text-xs text-slate-400 mt-2 flex items-center justify-between pt-2 border-t border-slate-800">
-              <span>High-Low / Low Delta</span>
-              <span className="text-emerald-400 font-mono font-medium">Weighted</span>
-            </p>
+          ) : (
+            <div className="text-xs text-slate-500 py-2">No losers detected in scan</div>
+          )}
+        </div>
+
+        {/* Intraday Spread Benchmark */}
+        <div className="bg-[#0e1117] border border-white/[0.08] rounded-xl p-4.5">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+            <span className="text-slate-300 font-medium">Average Volatility</span>
+            <span className="text-[11px] font-mono text-cyan-400">High-Low Delta</span>
+          </div>
+          <div>
+            <div className="text-xl font-bold font-mono text-white">
+              {scanResult ? `+${scanResult.averageSpreadPercent}%` : '--'}
+            </div>
+            <div className="flex items-center justify-between text-xs text-slate-400 mt-2 pt-2 border-t border-white/[0.06]">
+              <span>Avg Gain: +{avgPositiveGain}%</span>
+              <span>Avg Drop: {avgNegativeDrop}%</span>
+            </div>
           </div>
         </div>
 
-        {/* KV Logging Telemetry */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4.5 relative overflow-hidden">
-          <div className="flex items-center justify-between text-xs font-medium text-slate-400 mb-2">
-            <span className="flex items-center gap-1.5 text-slate-300">
-              <Database className="w-4 h-4 text-purple-400" />
-              KV Destination
-            </span>
-            <span className="text-[10px] font-mono bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded">
-              7-Day TTL
-            </span>
+        {/* KV Sync Status */}
+        <div className="bg-[#0e1117] border border-white/[0.08] rounded-xl p-4.5">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+            <span className="text-slate-300 font-medium">KV Namespace</span>
+            <span className="text-[11px] font-mono text-emerald-400">Healthy</span>
           </div>
-          <div className="mt-1">
-            <div className="text-lg font-bold text-white font-mono truncate">
+          <div>
+            <div className="text-xl font-bold font-mono text-white">
               STOCKS_KV
             </div>
-            <p className="text-xs text-slate-400 mt-2 flex items-center justify-between pt-2 border-t border-slate-800">
-              <span>Keys written:</span>
-              <span className="text-purple-300 font-mono font-semibold">
-                latest + history + top5
-              </span>
-            </p>
-          </div>
-        </div>
-
-        {/* Cron Execution & Market Session */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4.5 relative overflow-hidden">
-          <div className="flex items-center justify-between text-xs font-medium text-slate-400 mb-2">
-            <span className="flex items-center gap-1.5 text-slate-300">
-              <Clock className="w-4 h-4 text-emerald-400" />
-              Market Status
-            </span>
-            <span
-              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                scanResult?.marketStatus === 'OPEN'
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : 'bg-amber-500/20 text-amber-400'
-              }`}
-            >
-              {scanResult?.marketStatus || 'MONITORING'}
-            </span>
-          </div>
-          <div className="mt-1">
-            <div className="text-sm font-mono text-slate-200">
-              Scan Latency:{' '}
-              <span className="text-emerald-400 font-bold">
-                {scanResult ? `${scanResult.executionDurationMs}ms` : '--'}
-              </span>
+            <div className="flex items-center justify-between text-xs text-slate-400 mt-2 pt-2 border-t border-white/[0.06]">
+              <span>Execution: {scanResult?.executionDurationMs ?? 45}ms</span>
+              <span className="font-mono text-amber-400">{scanResult?.marketStatus ?? 'OPEN'}</span>
             </div>
-            <p className="text-xs text-slate-400 mt-2 flex items-center justify-between pt-2 border-t border-slate-800">
-              <span>Scanned Universe:</span>
-              <span className="text-slate-200 font-mono font-medium">
-                {scanResult?.scannedCount || 26} Equities
-              </span>
-            </p>
           </div>
         </div>
       </div>
 
-      {/* Filter and Custom Ticker Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/80 p-3.5 rounded-xl border border-slate-800">
-        <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar">
-          <Layers className="w-4 h-4 text-slate-500 flex-shrink-0" />
-          <span className="text-xs font-semibold text-slate-400 flex-shrink-0">Filter Sector:</span>
-          {sectors.slice(0, 5).map((sec) => (
-            <button
-              key={sec}
-              onClick={() => setFilterSector(sec)}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
-                filterSector === sec
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              {sec}
-            </button>
-          ))}
+      {/* Modern Filter & View Mode Controls Bar */}
+      <div className="bg-[#0e1117] border border-white/[0.08] rounded-xl p-3 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-md">
+        {/* Segmented View Mode Tabs */}
+        <div className="flex items-center p-1 bg-black/40 rounded-lg border border-white/[0.04] overflow-x-auto no-scrollbar">
+          <button
+            onClick={() => setViewMode('split')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap flex items-center space-x-1.5 ${
+              viewMode === 'split'
+                ? 'bg-white/[0.12] text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Split className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Split Tables</span>
+          </button>
+          <button
+            onClick={() => setViewMode('positive')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap flex items-center space-x-1.5 ${
+              viewMode === 'positive'
+                ? 'bg-emerald-500/20 text-emerald-300 shadow-sm border border-emerald-500/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Gainers ({positiveStocks.length})</span>
+          </button>
+          <button
+            onClick={() => setViewMode('negative')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap flex items-center space-x-1.5 ${
+              viewMode === 'negative'
+                ? 'bg-rose-500/20 text-rose-300 shadow-sm border border-rose-500/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
+            <span>Losers ({negativeStocks.length})</span>
+          </button>
+          <button
+            onClick={() => setViewMode('combined')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
+              viewMode === 'combined'
+                ? 'bg-white/[0.12] text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <span>Combined ({filteredStocks.length})</span>
+          </button>
         </div>
 
-        {/* Add custom ticker to universe */}
-        <form onSubmit={handleAddTicker} className="flex items-center space-x-2">
+        {/* Search & Sector Filters */}
+        <div className="flex items-center space-x-2">
+          {/* Search Box */}
           <div className="relative">
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Add Ticker (e.g. COIN)..."
-              value={newTickerInput}
-              onChange={(e) => setNewTickerInput(e.target.value)}
-              className="bg-slate-800 text-xs text-white placeholder-slate-500 px-3 py-1.5 rounded-lg border border-slate-700 focus:outline-none focus:border-amber-400 font-mono uppercase w-44"
+              placeholder="Search ticker or name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-black/40 border border-white/[0.08] text-xs text-white placeholder-slate-500 pl-8 pr-3 py-1.5 rounded-lg focus:outline-none focus:border-cyan-400 w-36 sm:w-48 font-mono"
             />
           </div>
-          <button
-            type="submit"
-            className="flex items-center space-x-1 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-700 transition-colors"
+
+          {/* Sector Select */}
+          <select
+            value={filterSector}
+            onChange={(e) => setFilterSector(e.target.value)}
+            className="bg-black/40 border border-white/[0.08] text-xs text-slate-300 px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-cyan-400 cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5 text-amber-400" />
-            <span>Add</span>
-          </button>
-        </form>
+            {sectors.map((s) => (
+              <option key={s} value={s} className="bg-slate-900">
+                {s === 'ALL' ? 'All Sectors' : s}
+              </option>
+            ))}
+          </select>
+
+          {/* Add custom ticker */}
+          <form onSubmit={handleAddTicker} className="flex items-center">
+            <input
+              type="text"
+              placeholder="+ Ticker"
+              value={newTickerInput}
+              onChange={(e) => setNewTickerInput(e.target.value)}
+              className="bg-black/40 text-xs text-white placeholder-slate-500 px-2.5 py-1.5 rounded-l-lg border border-r-0 border-white/[0.08] focus:outline-none focus:border-amber-400 font-mono uppercase w-20"
+            />
+            <button
+              type="submit"
+              className="bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 px-2.5 py-1.5 rounded-r-lg border border-white/[0.08] transition-colors"
+              title="Add symbol"
+            >
+              <Plus className="w-3.5 h-3.5 text-amber-400" />
+            </button>
+          </form>
+        </div>
       </div>
 
-      {/* Volatile Stocks Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-        <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center space-x-2.5">
+      {/* RENDER DEDICATED TABLES */}
+
+      {/* Split Mode: Both Tables Displayed */}
+      {viewMode === 'split' && (
+        <div className="space-y-6">
+          <ModernStockTable
+            title="Bullish Volatile Equities"
+            category="positive"
+            stocks={positiveStocks}
+            onInspectKey={onInspectKey}
+          />
+          <ModernStockTable
+            title="Bearish Volatile Equities"
+            category="negative"
+            stocks={negativeStocks}
+            onInspectKey={onInspectKey}
+          />
+        </div>
+      )}
+
+      {/* Positive Only Mode */}
+      {viewMode === 'positive' && (
+        <ModernStockTable
+          title="Positive Performing Volatile Equities (Gainers)"
+          category="positive"
+          stocks={positiveStocks}
+          onInspectKey={onInspectKey}
+        />
+      )}
+
+      {/* Negative Only Mode */}
+      {viewMode === 'negative' && (
+        <ModernStockTable
+          title="Negative Performing Volatile Equities (Decliners)"
+          category="negative"
+          stocks={negativeStocks}
+          onInspectKey={onInspectKey}
+        />
+      )}
+
+      {/* Combined Master Table Mode */}
+      {viewMode === 'combined' && (
+        <ModernStockTable
+          title="All Volatile Equities (Combined Master Ranking)"
+          category="combined"
+          stocks={filteredStocks}
+          onInspectKey={onInspectKey}
+        />
+      )}
+    </div>
+  );
+};
+
+interface ModernStockTableProps {
+  title: string;
+  category: 'positive' | 'negative' | 'combined';
+  stocks: StockQuote[];
+  onInspectKey: (key: string) => void;
+}
+
+const ModernStockTable: React.FC<ModernStockTableProps> = ({
+  title,
+  category,
+  stocks,
+  onInspectKey,
+}) => {
+  const isPositive = category === 'positive';
+  const isNegative = category === 'negative';
+
+  return (
+    <div className="bg-[#0e1117] border border-white/[0.08] rounded-xl overflow-hidden shadow-xl">
+      {/* Table Header */}
+      <div className="px-5 py-3.5 border-b border-white/[0.06] flex items-center justify-between">
+        <div className="flex items-center space-x-2.5">
+          {isPositive ? (
+            <TrendingUp className="w-4 h-4 text-emerald-400" />
+          ) : isNegative ? (
+            <TrendingDown className="w-4 h-4 text-rose-400" />
+          ) : (
             <Activity className="w-4 h-4 text-amber-400" />
-            <h2 className="text-sm font-bold text-white tracking-wide">
-              Top Ranked Volatile Equities (Logged to KV)
-            </h2>
+          )}
+          <div className="flex items-center space-x-2">
+            <h3 className="text-sm font-semibold text-white tracking-tight">{title}</h3>
+            <span className="text-xs text-slate-400 font-mono">
+              ({stocks.length} recorded)
+            </span>
           </div>
-          <span className="text-xs text-slate-400 font-mono">
-            Key: <code className="text-cyan-400 bg-slate-800 px-1.5 py-0.5 rounded">latest_volatile_stocks</code>
-          </span>
         </div>
 
+        <div className="text-xs text-slate-400 font-mono hidden sm:flex items-center gap-1.5">
+          <span>KV Key:</span>
+          <code className="text-cyan-400 bg-white/[0.04] px-1.5 py-0.5 rounded text-[11px]">
+            latest_volatile_stocks
+          </code>
+        </div>
+      </div>
+
+      {/* Table Body */}
+      {stocks.length === 0 ? (
+        <div className="py-12 text-center text-xs text-slate-500">
+          No {category === 'positive' ? 'positive' : 'negative'} stocks recorded in this scan.
+        </div>
+      ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-800 bg-slate-950/40 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                <th className="py-3 px-4">Rank</th>
-                <th className="py-3 px-4">Stock Ticker</th>
-                <th className="py-3 px-4 text-right">Price</th>
-                <th className="py-3 px-4 text-right">24h Net</th>
-                <th className="py-3 px-4">Intraday Range (Low → High)</th>
-                <th className="py-3 px-4 text-right">Spread %</th>
-                <th className="py-3 px-4 text-right">Vol Multiplier</th>
-                <th className="py-3 px-4 text-center">Score</th>
-                <th className="py-3 px-4 text-center">KV Action</th>
+              <tr className="border-b border-white/[0.06] bg-black/20 text-[11px] font-medium text-slate-400">
+                <th className="py-2.5 px-4 w-12">#</th>
+                <th className="py-2.5 px-4">Ticker / Company</th>
+                <th className="py-2.5 px-4 text-right">Price</th>
+                <th className="py-2.5 px-4 text-right">24h Net</th>
+                <th className="py-2.5 px-4 min-w-[150px]">Intraday Range</th>
+                <th className="py-2.5 px-4 text-right">Spread %</th>
+                <th className="py-2.5 px-4 text-right">Vol Surge</th>
+                <th className="py-2.5 px-4 text-center">Score</th>
+                <th className="py-2.5 px-4 text-right">KV Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 text-xs">
-              {filteredStocks.map((stock, idx) => {
+            <tbody className="divide-y divide-white/[0.04] text-xs">
+              {stocks.map((stock, idx) => {
                 const spread = stock.intradaySpreadPercent;
-                const score = stock.volatilityScore;
                 const volSurge = (stock.volume / stock.avgVolume).toFixed(1);
 
                 return (
                   <tr
                     key={stock.symbol}
-                    className="hover:bg-slate-850/60 transition-colors group"
+                    className="hover:bg-white/[0.02] transition-colors group"
                   >
                     {/* Rank */}
-                    <td className="py-3 px-4 font-mono font-bold text-slate-400">
-                      <span
-                        className={`inline-flex items-center justify-center w-6 h-6 rounded-md text-xs ${
-                          idx === 0
-                            ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40'
-                            : idx === 1
-                            ? 'bg-orange-500/10 text-orange-300'
-                            : idx === 2
-                            ? 'bg-purple-500/10 text-purple-300'
-                            : 'text-slate-500'
-                        }`}
-                      >
-                        #{idx + 1}
-                      </span>
+                    <td className="py-3 px-4 font-mono text-slate-500 text-xs">
+                      {idx + 1}
                     </td>
 
-                    {/* Symbol & Name */}
+                    {/* Ticker & Name */}
                     <td className="py-3 px-4">
-                      <div className="flex items-center space-x-2.5">
-                        <div>
-                          <div className="font-mono font-bold text-white text-sm flex items-center gap-1.5">
-                            {stock.symbol}
-                            {stock.status === 'EXTREME' && (
-                              <span className="text-[10px] font-sans font-bold px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                                EXTREME
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[11px] text-slate-400 truncate max-w-[130px]">
-                            {stock.name}
-                          </div>
+                      <div>
+                        <div className="font-bold font-mono text-white text-sm flex items-center gap-1.5">
+                          {stock.symbol}
+                          {stock.status === 'EXTREME' && (
+                            <span className="text-[10px] font-sans font-semibold text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
+                              EXTREME
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-400 truncate max-w-[160px]">
+                          {stock.name} <span className="text-slate-600">·</span> {stock.sector}
                         </div>
                       </div>
                     </td>
 
                     {/* Price */}
-                    <td className="py-3 px-4 text-right font-mono font-semibold text-slate-200">
+                    <td className="py-3 px-4 text-right font-mono font-medium text-slate-200">
                       ${stock.price.toFixed(2)}
                     </td>
 
-                    {/* 24h Net % */}
+                    {/* 24h Net Change % */}
                     <td className="py-3 px-4 text-right font-mono font-semibold">
                       <span
-                        className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-xs ${
-                          stock.changePercent >= 0
-                            ? 'text-emerald-400 bg-emerald-500/10'
-                            : 'text-rose-400 bg-rose-500/10'
+                        className={`inline-flex items-center gap-0.5 ${
+                          stock.changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
+                        {stock.changePercent >= 0 ? (
+                          <ArrowUpRight className="w-3.5 h-3.5" />
+                        ) : (
+                          <ArrowDownRight className="w-3.5 h-3.5" />
+                        )}
                         {stock.changePercent >= 0 ? '+' : ''}
                         {stock.changePercent}%
                       </span>
                     </td>
 
-                    {/* Range Visualizer */}
-                    <td className="py-3 px-4 min-w-[180px]">
+                    {/* Intraday Range (Low -> High) */}
+                    <td className="py-3 px-4 min-w-[150px]">
                       <div className="space-y-1">
                         <div className="flex justify-between text-[10px] font-mono text-slate-400">
                           <span>${stock.low.toFixed(2)}</span>
-                          <span className="text-amber-400/80 font-bold">
-                            ${stock.high.toFixed(2)}
-                          </span>
+                          <span className="text-slate-300 font-medium">${stock.high.toFixed(2)}</span>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden relative">
+                        <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
                           <div
-                            className={`h-full rounded-full transition-all duration-500 ${
-                              spread >= 8
-                                ? 'bg-gradient-to-r from-orange-500 to-rose-500'
-                                : spread >= 4.5
-                                ? 'bg-gradient-to-r from-amber-500 to-orange-500'
-                                : 'bg-gradient-to-r from-cyan-500 to-amber-500'
+                            className={`h-full rounded-full ${
+                              stock.changePercent >= 0
+                                ? 'bg-emerald-500'
+                                : 'bg-rose-500'
                             }`}
                             style={{
                               width: `${Math.min(Math.max((spread / 15) * 100, 15), 100)}%`,
@@ -353,43 +478,35 @@ export const VolatilityRadar: React.FC<VolatilityRadarProps> = ({
                       +{spread}%
                     </td>
 
-                    {/* Volume Surge Factor */}
+                    {/* Volume Multiplier */}
                     <td className="py-3 px-4 text-right font-mono text-slate-300">
-                      <span
-                        className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${
-                          Number(volSurge) >= 2.0
-                            ? 'bg-purple-500/20 text-purple-300'
-                            : 'text-slate-400'
-                        }`}
-                      >
-                        {volSurge}x
-                      </span>
+                      {volSurge}x
                     </td>
 
                     {/* Volatility Score */}
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-3 px-4 text-center font-mono font-bold">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded-full font-mono font-black text-xs ${
-                          score >= 70
-                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                            : score >= 50
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                            : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                        }`}
+                        className={
+                          stock.volatilityScore >= 70
+                            ? 'text-rose-400'
+                            : stock.volatilityScore >= 50
+                            ? 'text-amber-400'
+                            : 'text-cyan-400'
+                        }
                       >
-                        {score}
+                        {stock.volatilityScore}
                       </span>
                     </td>
 
-                    {/* KV Inspector Action */}
-                    <td className="py-3 px-4 text-center">
+                    {/* KV Inspector Action Button */}
+                    <td className="py-3 px-4 text-right">
                       <button
                         onClick={() => onInspectKey(`ticker:${stock.symbol}:latest`)}
-                        className="inline-flex items-center space-x-1 text-xs text-slate-400 hover:text-cyan-400 bg-slate-800 hover:bg-slate-750 px-2.5 py-1 rounded-md transition-colors"
+                        className="inline-flex items-center space-x-1 text-[11px] text-slate-400 hover:text-cyan-400 bg-white/[0.04] hover:bg-white/[0.08] px-2 py-1 rounded border border-white/[0.06] transition-colors"
                         title={`Inspect KV key: ticker:${stock.symbol}:latest`}
                       >
                         <Database className="w-3 h-3 text-cyan-400" />
-                        <span>KV</span>
+                        <span>Inspect</span>
                       </button>
                     </td>
                   </tr>
@@ -398,7 +515,7 @@ export const VolatilityRadar: React.FC<VolatilityRadarProps> = ({
             </tbody>
           </table>
         </div>
-      </div>
+      )}
     </div>
   );
 };

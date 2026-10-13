@@ -139,60 +139,62 @@ export const KVExplorer: React.FC<KVExplorerProps> = ({
     <div className="space-y-6">
       {/* Top KV Header & Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div className="bg-[#0e1117] border border-white/[0.08] rounded-xl p-4.5">
           <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span className="flex items-center gap-1.5 text-cyan-400 font-semibold">
-              <Database className="w-4 h-4" />
-              KV Namespace Binding
+            <span className="flex items-center gap-1.5 text-cyan-400 font-medium">
+              <Database className="w-3.5 h-3.5" />
+              KV Binding
             </span>
-            <span className="text-emerald-400 font-mono text-[11px] bg-emerald-500/10 px-2 py-0.5 rounded">
-              Active
+            <span className="text-emerald-400 font-mono text-[11px]">
+              Ready
             </span>
           </div>
           <div className="text-xl font-bold font-mono text-white mt-1">STOCKS_KV</div>
-          <p className="text-xs text-slate-500 mt-1">Bound to Worker script environment</p>
+          <p className="text-xs text-slate-400 mt-1">Bound to Cloudflare Worker isolate</p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div className="bg-[#0e1117] border border-white/[0.08] rounded-xl p-4.5">
           <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span className="flex items-center gap-1.5 text-purple-400 font-semibold">
-              <Key className="w-4 h-4" />
-              Total Stored Keys
+            <span className="flex items-center gap-1.5 text-purple-400 font-medium">
+              <Key className="w-3.5 h-3.5" />
+              Stored Keys
             </span>
+            <span className="text-xs text-slate-400 font-mono">active</span>
           </div>
           <div className="text-xl font-bold font-mono text-white mt-1">
             {entries.length}{' '}
-            <span className="text-xs font-normal text-slate-400">keys present</span>
+            <span className="text-xs font-normal text-slate-400 font-sans">keys</span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">Across latest, history, and tickers</p>
+          <p className="text-xs text-slate-400 mt-1">latest + history + tickers</p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div className="bg-[#0e1117] border border-white/[0.08] rounded-xl p-4.5">
           <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span className="flex items-center gap-1.5 text-amber-400 font-semibold">
-              <FileCode className="w-4 h-4" />
-              Storage Footprint
+            <span className="flex items-center gap-1.5 text-amber-400 font-medium">
+              <FileCode className="w-3.5 h-3.5" />
+              Storage Size
             </span>
+            <span className="text-xs text-slate-400 font-mono">1GB free tier</span>
           </div>
           <div className="text-xl font-bold font-mono text-white mt-1">
             {(totalBytes / 1024).toFixed(2)} KB
           </div>
-          <p className="text-xs text-slate-500 mt-1">Cloudflare KV free limit: 1 GB</p>
+          <p className="text-xs text-slate-400 mt-1">Auto-expiring with 7-day TTL</p>
         </div>
       </div>
 
       {/* Action Controls & Prefix Filters */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3">
+      <div className="bg-[#0e1117] border border-white/[0.08] rounded-xl p-3.5 space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           {/* Search Box */}
           <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search keys (e.g. latest, history, NVDA)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 text-xs text-white placeholder-slate-500 pl-9 pr-3 py-2 rounded-lg focus:outline-none focus:border-cyan-400 font-mono"
+              className="w-full bg-black/40 border border-white/[0.08] text-xs text-white placeholder-slate-500 pl-9 pr-3 py-1.5 rounded-lg focus:outline-none focus:border-cyan-400 font-mono"
             />
           </div>
 
@@ -200,26 +202,26 @@ export const KVExplorer: React.FC<KVExplorerProps> = ({
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setIsAddingKey(!isAddingKey)}
-              className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-700 transition-colors"
+              className="flex items-center space-x-1.5 bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/[0.08] transition-colors"
             >
               <Plus className="w-3.5 h-3.5 text-cyan-400" />
               <span>Put Key</span>
             </button>
             <button
               onClick={handleExportDump}
-              className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-700 transition-colors"
+              className="flex items-center space-x-1.5 bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/[0.08] transition-colors"
               title="Download KV dump as JSON"
             >
               <Download className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Export Dump</span>
+              <span>Export</span>
             </button>
             <button
               onClick={handlePurgeAll}
-              className="flex items-center space-x-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-semibold px-3 py-2 rounded-lg border border-rose-500/30 transition-colors"
+              className="flex items-center space-x-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-medium px-3 py-1.5 rounded-lg border border-rose-500/20 transition-colors"
               title="Clear all keys in KV emulator"
             >
               <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-              <span>Purge KV</span>
+              <span>Purge</span>
             </button>
           </div>
         </div>
@@ -322,9 +324,9 @@ export const KVExplorer: React.FC<KVExplorerProps> = ({
       {/* Main Grid: Keys List & Key Content Inspector */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Keys Table (7 cols on lg) */}
-        <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-          <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
-            <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+        <div className="lg:col-span-7 bg-[#0e1117] border border-white/[0.08] rounded-xl overflow-hidden shadow-xl">
+          <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between bg-black/20">
+            <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
               <Database className="w-3.5 h-3.5 text-cyan-400" />
               KV Keys ({filteredEntries.length})
             </span>
@@ -417,9 +419,9 @@ export const KVExplorer: React.FC<KVExplorerProps> = ({
         </div>
 
         {/* Selected Key JSON Inspector (5 cols on lg) */}
-        <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col">
-          <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
-            <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+        <div className="lg:col-span-5 bg-[#0e1117] border border-white/[0.08] rounded-xl overflow-hidden shadow-xl flex flex-col">
+          <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between bg-black/20">
+            <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
               <FileCode className="w-3.5 h-3.5 text-cyan-400" />
               KV Value Inspector
             </span>

@@ -65,14 +65,14 @@ export const ApiConsole: React.FC<{ onScanDone?: () => void }> = ({ onScanDone }
   return (
     <div className="space-y-6">
       {/* Overview & Quick Preset Chips */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl">
-        <div className="flex items-center space-x-2 text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">
-          <Zap className="w-4 h-4" />
-          <span>Cloudflare Worker HTTP API Console</span>
+      <div className="bg-[#0e1117] border border-white/[0.08] rounded-xl p-5 shadow-xl">
+        <div className="flex items-center space-x-2 text-xs font-semibold text-emerald-400 mb-2">
+          <Zap className="w-3.5 h-3.5" />
+          <span>Cloudflare Worker REST Endpoints</span>
         </div>
-        <p className="text-xs text-slate-400 mb-4">
-          Test the endpoints exposed by <code className="text-emerald-300 font-mono">export default &#123; fetch(request, env, ctx) &#125;</code>.
-          These routes query the <code className="text-cyan-300 font-mono">STOCKS_KV</code> namespace and return low-latency JSON responses.
+        <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+          Test the HTTP endpoints defined in <code className="text-emerald-300 font-mono">src/index.ts</code>.
+          These routes query the <code className="text-cyan-300 font-mono">STOCKS_KV</code> binding and return JSON snapshots.
         </p>
 
         {/* Preset Buttons */}
@@ -81,9 +81,9 @@ export const ApiConsole: React.FC<{ onScanDone?: () => void }> = ({ onScanDone }
             <button
               key={p.label}
               onClick={() => handleApplyPreset(p)}
-              className="text-xs bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg border border-slate-700 font-mono flex items-center space-x-1.5 transition-colors"
+              className="text-xs bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white px-3 py-1.5 rounded-lg border border-white/[0.08] font-mono flex items-center space-x-1.5 transition-colors"
             >
-              <span className={p.m === 'GET' ? 'text-cyan-400' : 'text-amber-400 font-bold'}>
+              <span className={p.m === 'GET' ? 'text-cyan-400 font-semibold' : 'text-amber-400 font-bold'}>
                 {p.m}
               </span>
               <span>{p.url}</span>
@@ -93,26 +93,26 @@ export const ApiConsole: React.FC<{ onScanDone?: () => void }> = ({ onScanDone }
       </div>
 
       {/* Request Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
+      <div className="bg-[#0e1117] border border-white/[0.08] rounded-xl p-3.5 shadow-xl">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value as 'GET' | 'POST')}
-            className="bg-slate-800 text-xs font-mono font-bold text-cyan-400 px-3 py-2 rounded-lg border border-slate-700 focus:outline-none cursor-pointer"
+            className="bg-black/40 text-xs font-mono font-bold text-cyan-400 px-3 py-2 rounded-lg border border-white/[0.08] focus:outline-none cursor-pointer"
           >
             <option value="GET">GET</option>
             <option value="POST">POST</option>
           </select>
 
           <div className="relative flex-1">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-500">
-              https://worker.your-subdomain.workers.dev
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-500 hidden sm:inline">
+              https://worker.workers.dev
             </span>
             <input
               type="text"
               value={endpoint}
               onChange={(e) => setEndpoint(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 text-xs text-white pl-[270px] pr-3 py-2 rounded-lg font-mono focus:outline-none focus:border-emerald-400"
+              className="w-full bg-black/40 border border-white/[0.08] text-xs text-white sm:pl-[210px] pr-3 py-2 rounded-lg font-mono focus:outline-none focus:border-emerald-400"
             />
           </div>
 
@@ -122,13 +122,13 @@ export const ApiConsole: React.FC<{ onScanDone?: () => void }> = ({ onScanDone }
             className="flex items-center justify-center space-x-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-5 py-2 rounded-lg text-xs transition-colors shadow-md shadow-emerald-500/20 disabled:opacity-50"
           >
             <Send className="w-3.5 h-3.5" />
-            <span>{loading ? 'Executing...' : 'Send Request'}</span>
+            <span>{loading ? 'Sending...' : 'Send Request'}</span>
           </button>
         </div>
       </div>
 
       {/* Response Display Box */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+      <div className="bg-[#0e1117] border border-white/[0.08] rounded-xl overflow-hidden shadow-xl">
         <div className="px-5 py-3.5 border-b border-slate-800 bg-slate-950/40 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">

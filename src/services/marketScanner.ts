@@ -34,6 +34,8 @@ export interface VolatilityScanResult {
   scannedCount: number;
   marketStatus: 'OPEN' | 'PRE_MARKET' | 'AFTER_HOURS' | 'CLOSED';
   topVolatileStocks: StockQuote[];
+  positiveMovers: StockQuote[];
+  negativeMovers: StockQuote[];
   highestVolatile: StockQuote | null;
   averageSpreadPercent: number;
   executionDurationMs: number;
@@ -217,7 +219,10 @@ export async function scanMarketUniverse(customSymbols?: string[]): Promise<Vola
   // Sort descending by Volatility Score
   quotes.sort((a, b) => b.volatilityScore - a.volatilityScore);
 
-  const topVolatile = quotes.slice(0, 10);
+  const topVolatile = quotes.slice(0, 14);
+  const positiveMovers = quotes.filter(s => s.changePercent >= 0).slice(0, 8);
+  const negativeMovers = quotes.filter(s => s.changePercent < 0).slice(0, 8);
+
   const highest = topVolatile[0] || null;
   const avgSpread = topVolatile.length > 0
     ? Number((topVolatile.reduce((sum, s) => sum + s.intradaySpreadPercent, 0) / topVolatile.length).toFixed(2))
@@ -232,6 +237,8 @@ export async function scanMarketUniverse(customSymbols?: string[]): Promise<Vola
     scannedCount: quotes.length,
     marketStatus: getMarketSession(now),
     topVolatileStocks: topVolatile,
+    positiveMovers,
+    negativeMovers,
     highestVolatile: highest,
     averageSpreadPercent: avgSpread,
     executionDurationMs,
