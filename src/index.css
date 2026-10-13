@@ -1,12 +1,25 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
+  :root {
+    --bg-primary: #08090d;
+    --bg-surface: #0e1117;
+    --bg-surface-elevated: #161b22;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --accent-emerald: #10b981;
+    --accent-rose: #f43f5e;
+    --accent-amber: #f59e0b;
+    --accent-cyan: #06b6d4;
+  }
+
+  html, body {
+    background-color: var(--bg-primary);
+    color: #f1f5f9;
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background-color: #08090d;
-    color: #e2e8f0;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
   }
 
   code, pre, kbd, samp {
@@ -21,14 +34,48 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: #08090d;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.4);
+  background: #334155;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.6);
+  background: #475569;
+}
+
+/* Financial Terminal Glow & Surface Enhancements */
+.terminal-card {
+  background: #0e1117;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+}
+
+.bullish-card {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(14, 17, 23, 0.95) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.bearish-card {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.05) 0%, rgba(14, 17, 23, 0.95) 100%);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+}
+
+/* Smooth pulse animations */
+@keyframes subtle-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02);
+  }
+}
+
+.pulse-subtle {
+  animation: subtle-pulse 3s infinite ease-in-out;
 }
