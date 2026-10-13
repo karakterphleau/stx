@@ -1,0 +1,6 @@
+{
+  "name": "Cloudflare Worker Volatile Stock Tracker & KV Logger",
+  "description": "Production Cloudflare Worker and interactive simulator that tracks the most volatile market stocks via cron triggers and persists ranked analytics snapshots into Cloudflare KV namespaces.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
