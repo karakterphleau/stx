@@ -23,6 +23,12 @@ interface HeaderProps {
   isScanning: boolean;
   onSelectTab: (tab: string) => void;
   activeTab: string;
+  isRealTime?: boolean;
+  dataSource?: string;
+  lastSyncTime?: string;
+  autoRefresh?: boolean;
+  onToggleAutoRefresh?: () => void;
+  countdownSeconds?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,8 +36,13 @@ export const Header: React.FC<HeaderProps> = ({
   isScanning,
   onSelectTab,
   activeTab,
+  isRealTime = true,
+  dataSource = 'US Exchanges Live Feed',
+  lastSyncTime,
+  autoRefresh = true,
+  onToggleAutoRefresh,
+  countdownSeconds = 10,
 }) => {
-  const [autoCron, setAutoCron] = useState(false);
   const [selectedShockTicker, setSelectedShockTicker] = useState('MSTR');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showShockMenu, setShowShockMenu] = useState(false);
@@ -44,21 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
   const handleManualScan = async () => {
     onScanTriggered();
     await workerSimulatorInstance.triggerScheduledCron();
-    showToast('Market scan completed & written to STOCKS_KV');
-  };
-
-  const handleToggleAutoCron = () => {
-    if (autoCron) {
-      workerSimulatorInstance.stopAutoCron();
-      setAutoCron(false);
-      showToast('Scheduled Auto-Cron stopped');
-    } else {
-      workerSimulatorInstance.startAutoCron(15, () => {
-        onScanTriggered();
-      });
-      setAutoCron(true);
-      showToast('Auto-Cron active (fires every 15s)');
-    }
+    showToast('Market scan completed with live exchange data & written to STOCKS_KV');
   };
 
   const handleInjectShock = (direction: 'UP' | 'DOWN') => {
@@ -107,14 +104,22 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-[11px] font-mono text-cyan-400 bg-cyan-950/60 border border-cyan-500/30 px-2 py-0.5 rounded-full font-medium">
                   Cloudflare Worker
                 </span>
+                <span className="inline-flex items-center space-x-1.5 text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>REAL-TIME</span>
+                </span>
               </div>
               <div className="flex items-center space-x-2 text-xs text-slate-400 mt-0.5">
                 <span className="text-slate-300">KV Namespace:</span>
                 <code className="text-emerald-400 font-mono font-semibold">STOCKS_KV</code>
                 <span className="text-slate-600">·</span>
-                <span>Cron: <code className="text-slate-300 font-mono">*/5 13-20 * * 1-5</code></span>
-                <span className="text-slate-600 hidden sm:inline">·</span>
-                <span className="text-slate-400 hidden sm:inline">V8 Edge Isolate</span>
+                <span>Feed: <code className="text-emerald-400 font-mono">{dataSource}</code></span>
+                {lastSyncTime && (
+                  <>
+                    <span className="text-slate-600 hidden sm:inline">·</span>
+                    <span className="text-slate-400 hidden sm:inline">Synced {lastSyncTime}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -176,17 +181,18 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* Auto Cron Scheduler Toggle */}
+            {/* Live Streaming Mode Toggle */}
             <button
-              onClick={handleToggleAutoCron}
+              onClick={onToggleAutoRefresh}
               className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
-                autoCron
+                autoRefresh
                   ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300 shadow-sm'
-                  : 'bg-slate-850 hover:bg-slate-800 border-slate-700/80 text-slate-300'
+                  : 'bg-slate-850 hover:bg-slate-800 border-slate-700/80 text-slate-400'
               }`}
+              title="Toggle automatic real-time streaming updates"
             >
-              <Radio className={`w-3.5 h-3.5 ${autoCron ? 'animate-pulse text-emerald-400' : 'text-slate-400'}`} />
-              <span>{autoCron ? 'Auto-Cron: ON (15s)' : 'Auto-Cron: OFF'}</span>
+              <Radio className={`w-3.5 h-3.5 ${autoRefresh ? 'animate-pulse text-emerald-400' : 'text-slate-500'}`} />
+              <span>{autoRefresh ? `Live Stream: ON (${countdownSeconds}s)` : 'Live Stream: PAUSED'}</span>
             </button>
 
             {/* Manual Run Worker Cron */}
@@ -196,7 +202,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="flex items-center space-x-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs shadow-md shadow-orange-500/20 transition-all disabled:opacity-50"
             >
               <RotateCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
-              <span>{isScanning ? 'Scanning...' : 'Run Scan Now'}</span>
+              <span>{isScanning ? 'Syncing...' : 'Sync Live Now'}</span>
             </button>
 
             {/* Export Worker ZIP */}

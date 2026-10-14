@@ -31,47 +31,55 @@ export default function App() {
   const [commodityScanResult, setCommodityScanResult] = useState<CommodityScanResult | null>(null);
   const [isCommodityScanning, setIsCommodityScanning] = useState(false);
   const [selectedKeyForKV, setSelectedKeyForKV] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [countdown, setCountdown] = useState(10);
 
   // Initialize and run initial scan on mount
   useEffect(() => {
     const init = async () => {
-      // 1. Stocks Scan Init
-      const existing = await kvNamespaceInstance.get<VolatilityScanResult>(
-        'latest_volatile_stocks',
-        { type: 'json' }
-      );
+      setIsScanning(true);
+      setIsCommodityScanning(true);
 
-      if (existing) {
-        setScanResult(existing);
-      } else {
-        setIsScanning(true);
-        const res = await workerSimulatorInstance.triggerScheduledCron();
-        if (res) {
-          setScanResult(res);
-        }
-        setIsScanning(false);
-      }
+      const [res, commRes] = await Promise.all([
+        workerSimulatorInstance.triggerScheduledCron(),
+        workerSimulatorInstance.triggerCommoditiesScan(),
+      ]);
 
-      // 2. Commodities Scan Init
-      const existingComm = await kvNamespaceInstance.get<CommodityScanResult>(
-        'latest_volatile_commodities',
-        { type: 'json' }
-      );
+      if (res) setScanResult(res);
+      if (commRes) setCommodityScanResult(commRes);
 
-      if (existingComm) {
-        setCommodityScanResult(existingComm);
-      } else {
-        setIsCommodityScanning(true);
-        const commRes = await workerSimulatorInstance.triggerCommoditiesScan();
-        if (commRes) {
-          setCommodityScanResult(commRes);
-        }
-        setIsCommodityScanning(false);
-      }
+      setIsScanning(false);
+      setIsCommodityScanning(false);
     };
 
     init();
   }, []);
+
+  // Continuous Real-Time Streaming Interval
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          // Trigger silent background real-time sync
+          if (activeTab === 'commodities') {
+            workerSimulatorInstance.triggerCommoditiesScan().then((res) => {
+              if (res) setCommodityScanResult(res);
+            });
+          } else {
+            workerSimulatorInstance.triggerScheduledCron().then((res) => {
+              if (res) setScanResult(res);
+            });
+          }
+          return 10;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [autoRefresh, activeTab]);
 
   const handleTriggerScan = async () => {
     setIsScanning(true);
@@ -80,6 +88,7 @@ export default function App() {
       setScanResult(res);
     }
     setIsScanning(false);
+    setCountdown(10);
   };
 
   const handleTriggerCommoditiesScan = async () => {
@@ -89,6 +98,7 @@ export default function App() {
       setCommodityScanResult(res);
     }
     setIsCommodityScanning(false);
+    setCountdown(10);
   };
 
   const handleInspectKey = (key: string) => {
@@ -96,15 +106,71 @@ export default function App() {
     setActiveTab('kv');
   };
 
+  // Top ticker items combining most active stocks and commodities
+  const tickerItems = [
+    ...(scanResult?.topVolatileStocks.slice(0, 8).map(s => ({
+      symbol: s.symbol,
+      price: `$${s.price.toFixed(2)}`,
+      changePercent: s.changePercent,
+      isPositive: s.changePercent >= 0,
+      type: 'STOCK',
+    })) || []),
+    ...(commodityScanResult?.topVolatileCommodities.slice(0, 6).map(c => ({
+      symbol: c.tickerCode,
+      price: `$${c.price.toFixed(2)}`,
+      changePercent: c.changePercent,
+      isPositive: c.changePercent >= 0,
+      type: 'COMMODITY',
+    })) || []),
+  ];
+
   return (
     <div className="min-h-screen bg-[#08090d] text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
       {/* Interactive Top Header */}
       <Header
         onScanTriggered={handleTriggerScan}
-        isScanning={isScanning}
+        isScanning={isScanning || isCommodityScanning}
         onSelectTab={setActiveTab}
         activeTab={activeTab}
+        isRealTime={true}
+        dataSource={scanResult?.dataSource || 'US Financial Exchanges Live'}
+        lastSyncTime={scanResult?.lastSyncTime}
+        autoRefresh={autoRefresh}
+        onToggleAutoRefresh={() => setAutoRefresh(!autoRefresh)}
+        countdownSeconds={countdown}
       />
+
+      {/* Real-Time Live Ticker Tape Bar */}
+      <div className="bg-[#0b0d13] border-b border-slate-800/80 py-2 px-4 overflow-hidden relative shadow-inner">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center space-x-2 text-[11px] font-mono text-slate-400 flex-shrink-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span className="font-bold text-white uppercase tracking-wider">Live Exchange Feed:</span>
+            <span className="text-emerald-400 hidden sm:inline">100% Real-Time</span>
+          </div>
+
+          <div className="flex items-center space-x-5 overflow-x-auto no-scrollbar font-mono text-xs">
+            {tickerItems.map((item, idx) => (
+              <div key={`${item.symbol}-${idx}`} className="flex items-center space-x-1.5 flex-shrink-0">
+                <span className="font-bold text-slate-200">{item.symbol}</span>
+                <span className="text-slate-300">{item.price}</span>
+                <span
+                  className={`text-[11px] font-semibold px-1 rounded ${
+                    item.isPositive ? 'text-emerald-400 bg-emerald-950/60' : 'text-rose-400 bg-rose-950/60'
+                  }`}
+                >
+                  {item.isPositive ? '+' : ''}{item.changePercent}%
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden lg:flex items-center space-x-2 text-[11px] font-mono text-slate-400 flex-shrink-0">
+            <span>Next sync in:</span>
+            <strong className="text-amber-400 font-bold">{countdown}s</strong>
+          </div>
+        </div>
+      </div>
 
       {/* Main App Content Body */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">

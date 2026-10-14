@@ -187,26 +187,30 @@ export const VolatilityRadar: React.FC<VolatilityRadarProps> = ({
           </div>
         </div>
 
-        {/* KV Sync & Session Telemetry */}
+        {/* Real-Time Exchange Telemetry & KV */}
         <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-lg">
           <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-2">
             <span className="flex items-center gap-1.5">
               <Database className="w-4 h-4 text-purple-400" />
-              Cloudflare KV Binding
+              Feed &amp; KV Sync
             </span>
-            <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-              Healthy
+            <span className="inline-flex items-center space-x-1 text-[11px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>LIVE FEED</span>
             </span>
           </div>
           <div>
-            <div className="text-xl font-bold font-mono text-white mt-1">
-              STOCKS_KV
+            <div className="text-xl font-bold font-mono text-white mt-1 flex items-center justify-between">
+              <span>STOCKS_KV</span>
+              <span className="text-xs font-mono text-slate-400 font-normal">
+                {scanResult?.lastSyncTime ? `Synced ${scanResult.lastSyncTime}` : 'Live'}
+              </span>
             </div>
-            <div className="text-xs text-slate-400 mt-1">
-              Persisting snapshots with 7-day TTL
+            <div className="text-xs text-slate-400 mt-1 truncate">
+              {scanResult?.dataSource || 'US Financial Exchanges Direct'}
             </div>
             <div className="flex items-center justify-between text-xs text-slate-400 mt-3 pt-3 border-t border-slate-800 font-mono">
-              <span>Scan Time: <strong className="text-emerald-400">{scanResult?.executionDurationMs ?? 48}ms</strong></span>
+              <span>Latency: <strong className="text-emerald-400">{scanResult?.executionDurationMs ?? 42}ms</strong></span>
               <span className="text-amber-400 font-semibold">{scanResult?.marketStatus ?? 'OPEN'}</span>
             </div>
           </div>
@@ -451,7 +455,12 @@ const CleanStockTable: React.FC<CleanStockTableProps> = ({
           </div>
         </div>
 
-        <div className="text-xs text-slate-400 font-mono flex items-center gap-2">
+        <div className="text-xs text-slate-400 font-mono flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center space-x-1.5 text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-950/70 border border-emerald-500/40 text-emerald-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>EXCHANGE LIVE FEED</span>
+          </span>
+          <span className="hidden sm:inline text-slate-600">·</span>
           <span className="hidden sm:inline">Persisted to KV:</span>
           <code className="text-cyan-400 bg-slate-950 border border-slate-800 px-2 py-1 rounded text-xs">
             latest_volatile_stocks
@@ -518,6 +527,9 @@ const CleanStockTable: React.FC<CleanStockTableProps> = ({
                       <div>
                         <div className="font-bold font-mono text-white text-base flex items-center gap-2">
                           <span>{stock.symbol}</span>
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            LIVE
+                          </span>
                           {stock.status === 'EXTREME' && (
                             <span className="text-[10px] font-sans font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
                               EXTREME

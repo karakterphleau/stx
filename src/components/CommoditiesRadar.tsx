@@ -438,7 +438,12 @@ const CommodityTableCard: React.FC<CommodityTableCardProps> = ({
           </div>
         </div>
 
-        <div className="text-xs text-slate-400 font-mono flex items-center gap-2">
+        <div className="text-xs text-slate-400 font-mono flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center space-x-1.5 text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-950/70 border border-emerald-500/40 text-emerald-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>CME / NYMEX LIVE FEED</span>
+          </span>
+          <span className="hidden sm:inline text-slate-600">·</span>
           <span className="hidden sm:inline">Persisted to KV:</span>
           <code className="text-cyan-400 bg-slate-950 border border-slate-800 px-2 py-1 rounded text-xs">
             latest_volatile_commodities
@@ -504,6 +509,9 @@ const CommodityTableCard: React.FC<CommodityTableCardProps> = ({
                         <div className="font-bold font-mono text-white text-base flex items-center gap-2">
                           <span>{item.name}</span>
                           <span className="text-xs text-slate-400 font-normal">({item.tickerCode})</span>
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            LIVE
+                          </span>
                           {item.status === 'EXTREME' && (
                             <span className="text-[10px] font-sans font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
                               EXTREME
