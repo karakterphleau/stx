@@ -113,7 +113,9 @@ export default {
           lastScanMetadata: metadataRaw || null,
           endpoints: [
             { path: '/api/volatile', method: 'GET', description: 'Get latest top volatile stocks from KV' },
+            { path: '/api/commodities', method: 'GET', description: 'Get latest volatile commodities (Energy, Metals, Agriculture) from KV' },
             { path: '/api/scan', method: 'POST', description: 'Trigger an on-demand market volatility scan and persist to KV' },
+            { path: '/api/scan-commodities', method: 'POST', description: 'Trigger an on-demand commodities scan and persist to KV' },
             { path: '/api/history', method: 'GET', description: 'List historical volatility snapshots logged in KV' },
             { path: '/api/ticker/:symbol', method: 'GET', description: 'Get latest volatility status for a specific stock' },
             { path: '/api/kv/keys', method: 'GET', description: 'List stored keys in the KV namespace' },
@@ -132,6 +134,18 @@ export default {
           }, 404);
         }
         return jsonResponse(latestData);
+      }
+
+      // 2b. GET /api/commodities - Get latest volatile commodities
+      if (pathname === '/api/commodities' && method === 'GET') {
+        const commData = await env.STOCKS_KV.get('latest_volatile_commodities', { type: 'json' });
+        if (!commData) {
+          return jsonResponse({
+            message: 'No commodities data recorded yet. Trigger a scan via POST /api/scan-commodities.',
+            topVolatileCommodities: [],
+          }, 404);
+        }
+        return jsonResponse(commData);
       }
 
       // 3. POST /api/scan - Trigger on-demand volatility scan

@@ -12,6 +12,7 @@ import {
   Code2,
   Terminal,
   ExternalLink,
+  Wheat,
 } from 'lucide-react';
 import { workerSimulatorInstance } from '../services/workerSimulator';
 import { downloadWorkerZip } from '../utils/zipDownloader';
@@ -72,7 +73,8 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const navItems = [
-    { id: 'radar', label: 'Market Volatility Radar', icon: Activity },
+    { id: 'radar', label: 'Stocks Volatility', icon: Activity },
+    { id: 'commodities', label: 'Commodities Volatility', icon: Wheat },
     { id: 'kv', label: 'Cloudflare KV Explorer', icon: Database },
     { id: 'api', label: 'HTTP REST Tester', icon: Zap },
     { id: 'code', label: 'Worker Code & Config', icon: Code2 },

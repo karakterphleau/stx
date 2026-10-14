@@ -1,5 +1,6 @@
 import { kvNamespaceInstance } from './kvStore';
 import { scanMarketUniverse, VolatilityScanResult, StockQuote } from './marketScanner';
+import { scanCommoditiesUniverse, CommodityScanResult, CommodityQuote } from './commodityScanner';
 
 export interface LogEntry {
   id: string;
@@ -167,6 +168,50 @@ class WorkerSimulatorEngine {
     }));
   }
 
+  /**
+   * Run Commodities Volatility Scan and persist to KV
+   */
+  public async triggerCommoditiesScan(): Promise<CommodityScanResult | null> {
+    try {
+      this.addLog('CRON', `[CRON] Scanning global commodities universe (Energy, Metals, Agriculture)...`);
+      const result = await scanCommoditiesUniverse();
+      await this.persistCommoditiesToKV(result);
+      this.addLog('CRON', `[CRON] Commodities scan completed. Top Mover: ${result.highestVolatile?.name} (${result.highestVolatile?.intradaySpreadPercent}% spread).`);
+      return result;
+    } catch (err: any) {
+      this.addLog('WARN', `[COMMODITIES ERROR] Scan failed: ${err?.message || err}`);
+      return null;
+    }
+  }
+
+  private async persistCommoditiesToKV(result: CommodityScanResult) {
+    const payload = JSON.stringify(result);
+    const byteSize = new Blob([payload]).size;
+
+    // 1. Put latest_volatile_commodities
+    await kvNamespaceInstance.put('latest_volatile_commodities', payload, {
+      metadata: {
+        timestamp: result.timestamp,
+        topCommodity: result.highestVolatile?.symbol,
+        count: result.topVolatileCommodities.length,
+      },
+    });
+    this.addLog('KV_PUT', `KV.put("latest_volatile_commodities", [Payload: ${(byteSize / 1024).toFixed(1)} KB])`);
+
+    // 2. Put history:commodities:<timestamp> with 7-day TTL
+    const unixTimestamp = new Date(result.timestamp).getTime();
+    await kvNamespaceInstance.put(`history:commodities:${unixTimestamp}`, payload, {
+      expirationTtl: 604800,
+    });
+
+    // 3. Put individual commodity lookups
+    for (const item of result.topVolatileCommodities.slice(0, 6)) {
+      await kvNamespaceInstance.put(`commodity:${item.symbol}:latest`, JSON.stringify(item), {
+        expirationTtl: 86400,
+      });
+    }
+  }
+
   private dispatchSimulatedWebhooks(extreme: StockQuote[], scan: VolatilityScanResult) {
     for (const stock of extreme.slice(0, 3)) {
       const alert: WebhookAlert = {
@@ -232,6 +277,14 @@ class WorkerSimulatorEngine {
         } else {
           data = latest;
         }
+      } else if (path === '/api/commodities') {
+        const latest = await kvNamespaceInstance.get('latest_volatile_commodities', { type: 'json' });
+        if (!latest) {
+          status = 404;
+          data = { error: 'No commodities scan recorded yet. Run a commodities scan first.' };
+        } else {
+          data = latest;
+        }
       } else if (path === '/api/scan' && method === 'POST') {
         const result = await this.triggerScheduledCron();
         if (result) {
@@ -239,6 +292,23 @@ class WorkerSimulatorEngine {
         } else {
           status = 500;
           data = { error: 'Scan execution failed' };
+        }
+      } else if (path === '/api/scan-commodities' && method === 'POST') {
+        const result = await this.triggerCommoditiesScan();
+        if (result) {
+          data = { success: true, message: 'Commodities scan executed and saved to KV', data: result };
+        } else {
+          status = 500;
+          data = { error: 'Commodities scan failed' };
+        }
+      } else if (path.startsWith('/api/commodity/')) {
+        const sym = path.replace('/api/commodity/', '').toUpperCase();
+        const commData = await kvNamespaceInstance.get(`commodity:${sym}:latest`, { type: 'json' });
+        if (!commData) {
+          status = 404;
+          data = { error: `Commodity ${sym} not found in KV` };
+        } else {
+          data = commData;
         }
       } else if (path === '/api/history') {
         const listRes = await kvNamespaceInstance.list({ prefix: 'history:', limit: 10 });

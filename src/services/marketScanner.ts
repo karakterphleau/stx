@@ -21,6 +21,8 @@ export interface StockQuote {
   changePercent: number;
   volume: number;
   avgVolume: number;
+  dollarVolume: number;
+  volumeSurgeRatio: number;
   intradaySpreadPercent: number;
   volatilityScore: number;
   status: 'EXTREME' | 'HIGH' | 'ELEVATED' | 'MODERATE';
@@ -208,6 +210,8 @@ export async function scanMarketUniverse(customSymbols?: string[]): Promise<Vola
       changePercent,
       volume,
       avgVolume,
+      dollarVolume: Math.floor(volume * price),
+      volumeSurgeRatio: Number(volumeRatio.toFixed(1)),
       intradaySpreadPercent,
       volatilityScore,
       status,

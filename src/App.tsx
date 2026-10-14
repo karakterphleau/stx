@@ -6,12 +6,14 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { VolatilityRadar } from './components/VolatilityRadar';
+import { CommoditiesRadar } from './components/CommoditiesRadar';
 import { KVExplorer } from './components/KVExplorer';
 import { ApiConsole } from './components/ApiConsole';
 import { CodeViewer } from './components/CodeViewer';
 import { LogsConsole } from './components/LogsConsole';
 import { workerSimulatorInstance } from './services/workerSimulator';
 import { VolatilityScanResult } from './services/marketScanner';
+import { CommodityScanResult } from './services/commodityScanner';
 import { kvNamespaceInstance } from './services/kvStore';
 import {
   Flame,
@@ -26,12 +28,14 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('radar');
   const [scanResult, setScanResult] = useState<VolatilityScanResult | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [commodityScanResult, setCommodityScanResult] = useState<CommodityScanResult | null>(null);
+  const [isCommodityScanning, setIsCommodityScanning] = useState(false);
   const [selectedKeyForKV, setSelectedKeyForKV] = useState<string | null>(null);
 
   // Initialize and run initial scan on mount
   useEffect(() => {
     const init = async () => {
-      // Check if we already have data in KV
+      // 1. Stocks Scan Init
       const existing = await kvNamespaceInstance.get<VolatilityScanResult>(
         'latest_volatile_stocks',
         { type: 'json' }
@@ -40,13 +44,29 @@ export default function App() {
       if (existing) {
         setScanResult(existing);
       } else {
-        // Trigger first automatic scan
         setIsScanning(true);
         const res = await workerSimulatorInstance.triggerScheduledCron();
         if (res) {
           setScanResult(res);
         }
         setIsScanning(false);
+      }
+
+      // 2. Commodities Scan Init
+      const existingComm = await kvNamespaceInstance.get<CommodityScanResult>(
+        'latest_volatile_commodities',
+        { type: 'json' }
+      );
+
+      if (existingComm) {
+        setCommodityScanResult(existingComm);
+      } else {
+        setIsCommodityScanning(true);
+        const commRes = await workerSimulatorInstance.triggerCommoditiesScan();
+        if (commRes) {
+          setCommodityScanResult(commRes);
+        }
+        setIsCommodityScanning(false);
       }
     };
 
@@ -60,6 +80,15 @@ export default function App() {
       setScanResult(res);
     }
     setIsScanning(false);
+  };
+
+  const handleTriggerCommoditiesScan = async () => {
+    setIsCommodityScanning(true);
+    const res = await workerSimulatorInstance.triggerCommoditiesScan();
+    if (res) {
+      setCommodityScanResult(res);
+    }
+    setIsCommodityScanning(false);
   };
 
   const handleInspectKey = (key: string) => {
@@ -84,6 +113,15 @@ export default function App() {
             scanResult={scanResult}
             onInspectKey={handleInspectKey}
             onRefresh={handleTriggerScan}
+          />
+        )}
+
+        {activeTab === 'commodities' && (
+          <CommoditiesRadar
+            scanResult={commodityScanResult}
+            onInspectKey={handleInspectKey}
+            onRefresh={handleTriggerCommoditiesScan}
+            isScanning={isCommodityScanning}
           />
         )}
 

@@ -22,10 +22,13 @@ export const ApiConsole: React.FC<{ onScanDone?: () => void }> = ({ onScanDone }
 
   const presets = [
     { label: 'GET /api/volatile', m: 'GET', url: '/api/volatile', desc: 'Read top volatile stocks from STOCKS_KV' },
+    { label: 'GET /api/commodities', m: 'GET', url: '/api/commodities', desc: 'Read top volatile commodities from STOCKS_KV' },
     { label: 'POST /api/scan', m: 'POST', url: '/api/scan', desc: 'Trigger on-demand market scan & write to KV' },
+    { label: 'POST /api/scan-commodities', m: 'POST', url: '/api/scan-commodities', desc: 'Trigger on-demand commodities scan & write to KV' },
     { label: 'GET /api/history', m: 'GET', url: '/api/history', desc: 'List historical scan snapshots logged in KV' },
     { label: 'GET /api/ticker/NVDA', m: 'GET', url: '/api/ticker/NVDA', desc: 'Read specific ticker snapshot' },
-    { label: 'GET /api/ticker/MSTR', m: 'GET', url: '/api/ticker/MSTR', desc: 'Read MSTR volatility snapshot' },
+    { label: 'GET /api/commodity/GOLD', m: 'GET', url: '/api/commodity/GOLD', desc: 'Read Gold commodity snapshot' },
+    { label: 'GET /api/commodity/NAT_GAS', m: 'GET', url: '/api/commodity/NAT_GAS', desc: 'Read Natural Gas commodity snapshot' },
     { label: 'GET /api/kv/keys', m: 'GET', url: '/api/kv/keys', desc: 'List stored keys in KV namespace' },
     { label: 'GET /', m: 'GET', url: '/', desc: 'Worker status and API index' },
   ];

@@ -33,6 +33,7 @@ export const VolatilityRadar: React.FC<VolatilityRadarProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSector, setFilterSector] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'split' | 'positive' | 'negative' | 'combined'>('split');
+  const [sortBy, setSortBy] = useState<'volatility' | 'volume' | 'dollarVolume' | 'change' | 'spread'>('volatility');
 
   const handleAddTicker = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +51,7 @@ export const VolatilityRadar: React.FC<VolatilityRadarProps> = ({
   const allStocks = scanResult?.topVolatileStocks || [];
 
   // Filter stocks based on sector & search query
-  const filteredStocks = allStocks.filter((s) => {
+  let filteredStocks = allStocks.filter((s) => {
     const matchesSector = filterSector === 'ALL' || s.sector === filterSector;
     const matchesSearch =
       s.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -58,10 +59,21 @@ export const VolatilityRadar: React.FC<VolatilityRadarProps> = ({
     return matchesSector && matchesSearch;
   });
 
+  // Apply chosen sorting
+  filteredStocks = [...filteredStocks].sort((a, b) => {
+    if (sortBy === 'volume') return b.volume - a.volume;
+    if (sortBy === 'dollarVolume') return b.dollarVolume - a.dollarVolume;
+    if (sortBy === 'change') return Math.abs(b.changePercent) - Math.abs(a.changePercent);
+    if (sortBy === 'spread') return b.intradaySpreadPercent - a.intradaySpreadPercent;
+    return b.volatilityScore - a.volatilityScore;
+  });
+
   const positiveStocks = filteredStocks.filter((s) => s.changePercent >= 0);
   const negativeStocks = filteredStocks.filter((s) => s.changePercent < 0);
 
   const sectors = ['ALL', ...Array.from(new Set(allStocks.map((s) => s.sector)))];
+
+  const highestVolumeStock = [...filteredStocks].sort((a, b) => b.volume - a.volume)[0] || null;
 
   const bestGainer = [...filteredStocks]
     .filter((s) => s.changePercent >= 0)
@@ -268,6 +280,20 @@ export const VolatilityRadar: React.FC<VolatilityRadarProps> = ({
               />
             </div>
 
+            {/* Sort Dropdown */}
+            <select
+              aria-label="Sort stocks by metric"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="bg-slate-950 border border-slate-700/80 text-xs text-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-amber-400 cursor-pointer font-medium"
+            >
+              <option value="volatility">Sort: Volatility Score</option>
+              <option value="volume">Sort: Traded Volume (Shares)</option>
+              <option value="dollarVolume">Sort: Dollar Volume ($ Turnover)</option>
+              <option value="change">Sort: 24h Net Move %</option>
+              <option value="spread">Sort: Intraday Spread %</option>
+            </select>
+
             {/* Sector Dropdown */}
             <select
               aria-label="Filter stocks by industry sector"
@@ -449,7 +475,7 @@ const CleanStockTable: React.FC<CleanStockTableProps> = ({
                 <th className="py-3 px-5 text-right">24h Net</th>
                 <th className="py-3 px-5 min-w-[200px]">Intraday Range (Low → High)</th>
                 <th className="py-3 px-5 text-right">Spread %</th>
-                <th className="py-3 px-5 text-right">Volume</th>
+                <th className="py-3 px-5 text-right">Traded Volume ($ Turnover)</th>
                 <th className="py-3 px-5 text-center">Score</th>
                 <th className="py-3 px-5 text-center">KV Action</th>
               </tr>
@@ -559,11 +585,23 @@ const CleanStockTable: React.FC<CleanStockTableProps> = ({
                       +{spread}%
                     </td>
 
-                    {/* Volume Surge Factor */}
-                    <td className="py-4 px-5 text-right font-mono text-slate-300 text-xs">
-                      <span className={`px-2 py-0.5 rounded font-semibold ${Number(volSurge) >= 2.0 ? 'bg-purple-500/20 text-purple-300' : 'text-slate-400'}`}>
-                        {volSurge}x avg
-                      </span>
+                    {/* Trade Volume (Shares + Dollar Turnover + Ratio) */}
+                    <td className="py-4 px-5 text-right font-mono text-xs">
+                      <div>
+                        <span className="font-bold text-white text-sm">
+                          {stock.volume >= 1000000 
+                            ? `${(stock.volume / 1000000).toFixed(1)}M` 
+                            : `${(stock.volume / 1000).toFixed(0)}K`}
+                        </span>
+                        <span className="text-[11px] text-slate-400 block font-normal">
+                          {stock.dollarVolume >= 1000000000 
+                            ? `$${(stock.dollarVolume / 1000000000).toFixed(2)}B` 
+                            : `$${(stock.dollarVolume / 1000000).toFixed(0)}M`} turnover
+                        </span>
+                        <span className={`text-[10px] inline-block px-1.5 py-0.2 rounded mt-0.5 font-semibold ${Number(volSurge) >= 2.0 ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'text-slate-500'}`}>
+                          {volSurge}x 30d avg
+                        </span>
+                      </div>
                     </td>
 
                     {/* Volatility Score */}
