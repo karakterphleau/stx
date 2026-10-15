@@ -13,10 +13,12 @@ import {
   Terminal,
   ExternalLink,
   Wheat,
+  ArrowUpDown,
 } from 'lucide-react';
 import { workerSimulatorInstance } from '../services/workerSimulator';
 import { downloadWorkerZip } from '../utils/zipDownloader';
-import { injectShock } from '../services/marketScanner';
+import { injectShock, TimePeriod } from '../services/marketScanner';
+import { injectCommodityShock } from '../services/commodityScanner';
 
 interface HeaderProps {
   onScanTriggered: () => void;
@@ -29,6 +31,8 @@ interface HeaderProps {
   autoRefresh?: boolean;
   onToggleAutoRefresh?: () => void;
   countdownSeconds?: number;
+  period?: TimePeriod;
+  onSelectPeriod?: (period: TimePeriod) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -42,6 +46,8 @@ export const Header: React.FC<HeaderProps> = ({
   autoRefresh = true,
   onToggleAutoRefresh,
   countdownSeconds = 10,
+  period = 'day',
+  onSelectPeriod,
 }) => {
   const [selectedShockTicker, setSelectedShockTicker] = useState('MSTR');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -59,9 +65,14 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handleInjectShock = (direction: 'UP' | 'DOWN') => {
-    injectShock(selectedShockTicker, direction);
+    if (selectedShockTicker.includes('=F') || ['CL', 'GC', 'NG', 'SI', 'ZC'].includes(selectedShockTicker)) {
+      injectCommodityShock(selectedShockTicker, direction);
+    } else {
+      injectShock(selectedShockTicker, direction);
+    }
     setShowShockMenu(false);
-    showToast(`Injected volatility surge on ${selectedShockTicker}. Run scan to log.`);
+    onScanTriggered();
+    showToast(`Injected volatility surge on ${selectedShockTicker}. Running market scan.`);
   };
 
   const handleDownload = async () => {
@@ -70,8 +81,8 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const navItems = [
-    { id: 'radar', label: 'Stocks Volatility', icon: Activity },
-    { id: 'commodities', label: 'Commodities Volatility', icon: Wheat },
+    { id: 'radar', label: 'Market Volatility', icon: Activity },
+    { id: 'gainers-losers', label: 'Gainers & Losers', icon: ArrowUpDown },
     { id: 'kv', label: 'Cloudflare KV Explorer', icon: Database },
     { id: 'api', label: 'HTTP REST Tester', icon: Zap },
     { id: 'code', label: 'Worker Code & Config', icon: Code2 },
@@ -148,19 +159,28 @@ export const Header: React.FC<HeaderProps> = ({
                   </p>
                   <div className="mb-3">
                     <label className="text-[11px] text-slate-400 block mb-1 font-medium">
-                      Select Equity:
+                      Select Asset (Stock or Commodity):
                     </label>
                     <select
                       value={selectedShockTicker}
                       onChange={(e) => setSelectedShockTicker(e.target.value)}
                       className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono"
                     >
-                      <option value="MSTR">MSTR — MicroStrategy</option>
-                      <option value="NVDA">NVDA — NVIDIA</option>
-                      <option value="TSLA">TSLA — Tesla</option>
-                      <option value="GME">GME — GameStop</option>
-                      <option value="SMCI">SMCI — Super Micro</option>
-                      <option value="COIN">COIN — Coinbase</option>
+                      <optgroup label="Stocks / Equities">
+                        <option value="MSTR">MSTR — MicroStrategy</option>
+                        <option value="NVDA">NVDA — NVIDIA</option>
+                        <option value="TSLA">TSLA — Tesla</option>
+                        <option value="GME">GME — GameStop</option>
+                        <option value="SMCI">SMCI — Super Micro</option>
+                        <option value="COIN">COIN — Coinbase</option>
+                      </optgroup>
+                      <optgroup label="Commodities / Futures">
+                        <option value="CL=F">CL=F — Crude Oil WTI</option>
+                        <option value="GC=F">GC=F — Gold Futures</option>
+                        <option value="NG=F">NG=F — Natural Gas</option>
+                        <option value="SI=F">SI=F — Silver Futures</option>
+                        <option value="ZC=F">ZC=F — Corn Futures</option>
+                      </optgroup>
                     </select>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -180,6 +200,51 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Trading Period Selector (Day / Week / Month) */}
+            {onSelectPeriod && (
+              <div className="flex items-center bg-slate-900 border border-slate-700/80 p-0.5 rounded-lg text-xs font-mono shadow-inner">
+                <span className="text-[11px] text-slate-400 font-semibold px-2 hidden lg:inline">
+                  Period:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onSelectPeriod('day')}
+                  className={`px-2.5 py-1.5 rounded-md font-semibold transition-all ${
+                    period === 'day'
+                      ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                  title="Calculate volatility and gain/drop over the Trading Day (1D)"
+                >
+                  Day (1D)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSelectPeriod('week')}
+                  className={`px-2.5 py-1.5 rounded-md font-semibold transition-all ${
+                    period === 'week'
+                      ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                  title="Calculate volatility and gain/drop over the Trading Week (5D)"
+                >
+                  Week (5D)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSelectPeriod('month')}
+                  className={`px-2.5 py-1.5 rounded-md font-semibold transition-all ${
+                    period === 'month'
+                      ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                  title="Calculate volatility and gain/drop over the Trading Month (30D)"
+                >
+                  Month (1M)
+                </button>
+              </div>
+            )}
 
             {/* Live Streaming Mode Toggle */}
             <button

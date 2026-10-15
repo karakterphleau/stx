@@ -5,6 +5,8 @@
  * for price swings, intraday spreads, contract trading volume, and volatility scores.
  */
 
+import { TimePeriod } from './marketScanner';
+
 export interface CommodityQuote {
   symbol: string;
   tickerCode: string;
@@ -29,6 +31,8 @@ export interface CommodityQuote {
   timestamp: string;
   isRealTime?: boolean;
   exchangeSource?: string;
+  period?: TimePeriod;
+  periodLabel?: string;
 }
 
 export interface CommodityScanResult {
@@ -44,6 +48,7 @@ export interface CommodityScanResult {
   isRealTime: boolean;
   dataSource: string;
   lastSyncTime: string;
+  period: TimePeriod;
 }
 
 export interface CommodityDefinition {
@@ -101,7 +106,7 @@ export function injectCommodityShock(symbol: string, direction: 'UP' | 'DOWN') {
   }
 }
 
-export async function scanCommoditiesUniverse(): Promise<CommodityScanResult> {
+export async function scanCommoditiesUniverse(period: TimePeriod = 'day'): Promise<CommodityScanResult> {
   const startTime = Date.now();
 
   let liveQuotesMap = new Map<string, any>();
@@ -109,7 +114,7 @@ export async function scanCommoditiesUniverse(): Promise<CommodityScanResult> {
   let dataSource = 'Direct Exchange Live Feed';
 
   try {
-    const res = await fetch('/api/live-market?type=commodities', {
+    const res = await fetch(`/api/live-market?type=commodities&period=${period}`, {
       headers: { 'Accept': 'application/json' },
     });
 
@@ -122,7 +127,8 @@ export async function scanCommoditiesUniverse(): Promise<CommodityScanResult> {
           }
         });
         isRealTimeFeed = true;
-        dataSource = 'CME Group / NYMEX / COMEX / ICE Futures';
+        const periodSuffix = period === 'week' ? ' (Weekly 5D)' : period === 'month' ? ' (Monthly 30D)' : ' (Trading Day 1D)';
+        dataSource = `CME Group / NYMEX / COMEX / ICE Futures${periodSuffix}`;
       }
     }
   } catch (err) {
@@ -278,6 +284,8 @@ export async function scanCommoditiesUniverse(): Promise<CommodityScanResult> {
       timestamp: quoteTimestamp,
       isRealTime: Boolean(liveData),
       exchangeSource,
+      period,
+      periodLabel: period === 'week' ? 'Week (5D)' : period === 'month' ? 'Month (30D)' : 'Day (1D)',
     };
   });
 
@@ -308,5 +316,6 @@ export async function scanCommoditiesUniverse(): Promise<CommodityScanResult> {
     isRealTime: isRealTimeFeed,
     dataSource,
     lastSyncTime: now.toLocaleTimeString(),
+    period,
   };
 }

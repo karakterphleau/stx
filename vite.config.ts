@@ -10,15 +10,27 @@ const __dirname = path.dirname(__filename);
 // In-memory cache for live market quotes (3 second TTL to prevent upstream throttling)
 const cache = new Map<string, { data: any; expiry: number }>();
 
-async function fetchRealtimeQuote(symbol: string) {
-  const cached = cache.get(symbol);
+async function fetchRealtimeQuote(symbol: string, period: 'day' | 'week' | 'month' = 'day') {
+  const cacheKey = `${symbol}:${period}`;
+  const cached = cache.get(cacheKey);
   const now = Date.now();
   if (cached && cached.expiry > now) {
     return cached.data;
   }
 
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=15m&range=1d`;
+    // interval and range mapping for day / week / month
+    let range = '1d';
+    let interval = '15m';
+    if (period === 'week') {
+      range = '5d';
+      interval = '1h';
+    } else if (period === 'month') {
+      range = '1mo';
+      interval = '1d';
+    }
+
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
     const res = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -39,29 +51,45 @@ async function fetchRealtimeQuote(symbol: string) {
     }
 
     const price = meta.regularMarketPrice;
-    const previousClose = meta.chartPreviousClose || meta.previousClose || price;
-    const change = Number((price - previousClose).toFixed(2));
-    const changePercent = meta.regularMarketChangePercent !== undefined 
-      ? Number(meta.regularMarketChangePercent.toFixed(2)) 
-      : Number(((change / previousClose) * 100).toFixed(2));
+    
+    // For day, chartPreviousClose or previousClose is used.
+    // For week / month, period initial base is the first valid open/close in the historical series
     const closes: number[] = quotes?.close 
-      ? quotes.close.filter((c: any) => typeof c === 'number' && !isNaN(c)).slice(-14)
+      ? quotes.close.filter((c: any) => typeof c === 'number' && !isNaN(c))
       : [price];
-
     const opens: number[] = quotes?.open
       ? quotes.open.filter((o: any) => typeof o === 'number' && !isNaN(o))
       : [];
-    const open = opens.length > 0 ? Number(opens[0].toFixed(2)) : Number(previousClose.toFixed(2));
+    const highs: number[] = quotes?.high
+      ? quotes.high.filter((h: any) => typeof h === 'number' && !isNaN(h))
+      : [];
+    const lows: number[] = quotes?.low
+      ? quotes.low.filter((l: any) => typeof l === 'number' && !isNaN(l))
+      : [];
 
-    const maxClose = closes.length > 0 ? Math.max(...closes) : price;
-    const minClose = closes.length > 0 ? Math.min(...closes) : price;
-    const high = meta.regularMarketDayHigh !== undefined && meta.regularMarketDayHigh !== null
-      ? Number(meta.regularMarketDayHigh.toFixed(2))
-      : Number(Math.max(price, maxClose).toFixed(2));
-    const low = meta.regularMarketDayLow !== undefined && meta.regularMarketDayLow !== null
-      ? Number(meta.regularMarketDayLow.toFixed(2))
-      : Number(Math.min(price, minClose).toFixed(2));
-    const volume = meta.regularMarketVolume || 0;
+    let periodBasePrice = meta.chartPreviousClose || meta.previousClose || price;
+    if (period === 'week' && opens.length > 0) {
+      periodBasePrice = opens[0];
+    } else if (period === 'month' && opens.length > 0) {
+      periodBasePrice = opens[0];
+    }
+
+    const change = Number((price - periodBasePrice).toFixed(2));
+    const changePercent = periodBasePrice > 0
+      ? Number(((change / periodBasePrice) * 100).toFixed(2))
+      : 0;
+
+    const sparkline = closes.length > 0 ? closes.slice(-20).map((c: number) => Number(c.toFixed(2))) : [price];
+
+    const high = highs.length > 0
+      ? Number(Math.max(...highs, price).toFixed(2))
+      : (meta.regularMarketDayHigh !== undefined ? Number(meta.regularMarketDayHigh.toFixed(2)) : price);
+    const low = lows.length > 0
+      ? Number(Math.min(...lows, price).toFixed(2))
+      : (meta.regularMarketDayLow !== undefined ? Number(meta.regularMarketDayLow.toFixed(2)) : price);
+
+    const open = opens.length > 0 ? Number(opens[0].toFixed(2)) : Number(periodBasePrice.toFixed(2));
+    const volume = meta.regularMarketVolume || (quotes?.volume ? quotes.volume.reduce((a: number, b: any) => a + (typeof b === 'number' ? b : 0), 0) : 0);
 
     const result = {
       symbol: meta.symbol || symbol,
@@ -70,20 +98,141 @@ async function fetchRealtimeQuote(symbol: string) {
       open,
       high,
       low,
-      previousClose: Number(previousClose.toFixed(2)),
+      previousClose: Number(periodBasePrice.toFixed(2)),
+      periodBasePrice: Number(periodBasePrice.toFixed(2)),
       change,
       changePercent,
       volume,
+      period,
       currency: meta.currency || 'USD',
       exchangeName: meta.exchangeName || meta.fullExchangeName || 'US Exchange',
-      sparkline: closes.length > 0 ? closes.map((c: number) => Number(c.toFixed(2))) : [price],
+      sparkline: sparkline.length > 0 ? sparkline : [price],
       timestamp: new Date(meta.regularMarketTime ? meta.regularMarketTime * 1000 : Date.now()).toISOString(),
       isRealtime: true,
     };
 
-    cache.set(symbol, { data: result, expiry: now + 3500 }); // 3.5s cache for real-time freshness
+    cache.set(cacheKey, { data: result, expiry: now + 3500 }); // 3.5s cache for real-time freshness
     return result;
   } catch (err) {
+    return null;
+  }
+}
+
+const allMarketCache = new Map<string, { data: any; expiry: number }>();
+
+async function fetchAllMarketScreenerQuotes(period: 'day' | 'week' | 'month' = 'day') {
+  const cacheKey = `all_market:${period}`;
+  const now = Date.now();
+  const cached = allMarketCache.get(cacheKey);
+  if (cached && cached.expiry > now) {
+    return cached.data;
+  }
+
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'application/json',
+  };
+
+  try {
+    const [gainersRes, losersRes, activesRes] = await Promise.all([
+      fetch('https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&lang=en-US&region=US&scrIds=day_gainers&count=40', { headers }),
+      fetch('https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&lang=en-US&region=US&scrIds=day_losers&count=40', { headers }),
+      fetch('https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&lang=en-US&region=US&scrIds=most_actives&count=40', { headers }),
+    ]);
+
+    const [gJson, lJson, aJson] = await Promise.all([
+      gainersRes.ok ? gainersRes.json() : null,
+      losersRes.ok ? losersRes.json() : null,
+      activesRes.ok ? activesRes.json() : null,
+    ]);
+
+    const rawQuotes: any[] = [
+      ...(gJson?.finance?.result?.[0]?.quotes || []),
+      ...(lJson?.finance?.result?.[0]?.quotes || []),
+      ...(aJson?.finance?.result?.[0]?.quotes || []),
+    ];
+
+    const uniqueQuotesMap = new Map<string, any>();
+    for (const q of rawQuotes) {
+      if (q && q.symbol && !uniqueQuotesMap.has(q.symbol)) {
+        uniqueQuotesMap.set(q.symbol, q);
+      }
+    }
+
+    // Benchmark major market leaders across key sectors to guarantee complete market depth
+    const benchmarkSymbols = [
+      'NVDA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'TSLA', 'BRK-B',
+      'LLY', 'JPM', 'UNH', 'V', 'XOM', 'JNJ', 'PG', 'HD', 'MA', 'COST',
+      'ABBV', 'MRK', 'BAC', 'CVX', 'KO', 'PEP', 'WMT', 'CSCO', 'TMO',
+      'NFLX', 'AMD', 'CRM', 'INTC', 'QCOM', 'CAT', 'GE', 'BA', 'GS',
+      'PLTR', 'SMCI', 'MSTR', 'COIN', 'GME', 'SPY', 'QQQ', 'IWM'
+    ];
+
+    const missingBenchmarks = benchmarkSymbols.filter(s => !uniqueQuotesMap.has(s));
+    if (missingBenchmarks.length > 0) {
+      const benchmarkQuotes = await Promise.all(missingBenchmarks.slice(0, 25).map(s => fetchRealtimeQuote(s, period)));
+      benchmarkQuotes.forEach(bq => {
+        if (bq && bq.symbol) {
+          uniqueQuotesMap.set(bq.symbol, bq);
+        }
+      });
+    }
+
+    let finalQuotes: any[] = [];
+
+    if (period === 'day') {
+      finalQuotes = Array.from(uniqueQuotesMap.values()).map(q => {
+        const price = typeof q.regularMarketPrice === 'number' ? q.regularMarketPrice : (q.price || 0);
+        const prevClose = typeof q.regularMarketPreviousClose === 'number' ? q.regularMarketPreviousClose : (q.previousClose || price);
+        const change = typeof q.regularMarketChange === 'number' ? q.regularMarketChange : Number((price - prevClose).toFixed(2));
+        const changePercent = typeof q.regularMarketChangePercent === 'number'
+          ? q.regularMarketChangePercent
+          : (prevClose > 0 ? Number(((change / prevClose) * 100).toFixed(2)) : 0);
+
+        const high = typeof q.regularMarketDayHigh === 'number' ? q.regularMarketDayHigh : (q.high || price);
+        const low = typeof q.regularMarketDayLow === 'number' ? q.regularMarketDayLow : (q.low || price);
+        const open = typeof q.regularMarketOpen === 'number' ? q.regularMarketOpen : (q.open || prevClose);
+        const volume = typeof q.regularMarketVolume === 'number' ? q.regularMarketVolume : (q.volume || 1000000);
+
+        return {
+          symbol: q.symbol,
+          name: q.shortName || q.longName || q.displayName || q.name || q.symbol,
+          price: Number(price.toFixed(2)),
+          open: Number(open.toFixed(2)),
+          high: Number(high.toFixed(2)),
+          low: Number(low.toFixed(2)),
+          previousClose: Number(prevClose.toFixed(2)),
+          change: Number(change.toFixed(2)),
+          changePercent: Number(changePercent.toFixed(2)),
+          volume,
+          period: 'day',
+          exchangeName: q.fullExchangeName || q.exchange || 'US Market',
+          sparkline: q.sparkline || [prevClose, price],
+          timestamp: new Date().toISOString(),
+          isRealtime: true,
+        };
+      });
+    } else {
+      // For week or month, resolve period-adjusted quotes
+      const allSymbols = Array.from(uniqueQuotesMap.keys());
+      const periodQuotes = await Promise.all(allSymbols.map(s => fetchRealtimeQuote(s, period)));
+      finalQuotes = periodQuotes.filter(Boolean);
+    }
+
+    const payload = {
+      success: true,
+      source: 'ALL_MARKET_SCREENER_LIVE',
+      marketScope: 'Entire US Stock Market (NYSE / NASDAQ / AMEX)',
+      timestamp: new Date().toISOString(),
+      count: finalQuotes.length,
+      quotes: finalQuotes,
+      period,
+    };
+
+    allMarketCache.set(cacheKey, { data: payload, expiry: now + 8000 }); // 8-second cache
+    return payload;
+  } catch (err: any) {
+    console.error('Error fetching all-market screener:', err);
     return null;
   }
 }
@@ -97,6 +246,19 @@ function realtimeMarketDataPlugin(): Plugin {
           const url = new URL(req.url || '', `http://${req.headers.host}`);
           const type = url.searchParams.get('type') || 'stocks';
           const symbolsParam = url.searchParams.get('symbols');
+          const rawPeriod = url.searchParams.get('period') || 'day';
+          const period: 'day' | 'week' | 'month' = (rawPeriod === 'week' || rawPeriod === 'month') ? rawPeriod : 'day';
+
+          // Handle ALL_MARKET / MOVERS request covering the entire market
+          if (type === 'all_market' || type === 'movers') {
+            const allMarketData = await fetchAllMarketScreenerQuotes(period);
+            if (allMarketData && allMarketData.quotes && allMarketData.quotes.length > 0) {
+              res.setHeader('Content-Type', 'application/json');
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              res.end(JSON.stringify(allMarketData));
+              return;
+            }
+          }
 
           let symbolsToFetch: string[] = [];
 
@@ -119,8 +281,8 @@ function realtimeMarketDataPlugin(): Plugin {
             ];
           }
 
-          // Fetch quotes in parallel
-          const quotes = await Promise.all(symbolsToFetch.map(s => fetchRealtimeQuote(s)));
+          // Fetch quotes in parallel with chosen period
+          const quotes = await Promise.all(symbolsToFetch.map(s => fetchRealtimeQuote(s, period)));
           const validQuotes = quotes.filter(Boolean);
 
           res.setHeader('Content-Type', 'application/json');

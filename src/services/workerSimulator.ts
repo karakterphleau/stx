@@ -1,6 +1,7 @@
 import { kvNamespaceInstance } from './kvStore';
 import { scanMarketUniverse, VolatilityScanResult, StockQuote } from './marketScanner';
 import { scanCommoditiesUniverse, CommodityScanResult, CommodityQuote } from './commodityScanner';
+import { scanAllMarketUniverse, AllMarketScanResult } from './allMarketScanner';
 
 export interface LogEntry {
   id: string;
@@ -81,7 +82,7 @@ class WorkerSimulatorEngine {
   /**
    * Emulates: scheduled(controller, env, ctx)
    */
-  public async triggerScheduledCron(): Promise<VolatilityScanResult | null> {
+  public async triggerScheduledCron(period: 'day' | 'week' | 'month' = 'day'): Promise<VolatilityScanResult | null> {
     if (this.isScanning) {
       this.addLog('WARN', '[CRON] Scheduled event skipped: concurrent scan already running.');
       return null;
@@ -89,15 +90,15 @@ class WorkerSimulatorEngine {
 
     this.isScanning = true;
     const nowIso = new Date().toISOString();
-    this.addLog('CRON', `[CRON] Scheduled cron trigger fired at ${nowIso} ("*/5 13-20 * * 1-5")`);
+    this.addLog('CRON', `[CRON] Scheduled cron trigger fired at ${nowIso} ("*/5 13-20 * * 1-5") [Period: ${period.toUpperCase()}]`);
 
     try {
-      const scanResult = await scanMarketUniverse(this.customTickers);
+      const scanResult = await scanMarketUniverse(this.customTickers, period);
 
       // Persist to KV
       await this.persistScanToKV(scanResult);
 
-      this.addLog('CRON', `[CRON] Scan completed in ${scanResult.executionDurationMs}ms. Market: ${scanResult.marketStatus}. Top Volatile: ${scanResult.highestVolatile?.symbol} (${scanResult.highestVolatile?.intradaySpreadPercent}% spread).`);
+      this.addLog('CRON', `[CRON] Scan completed in ${scanResult.executionDurationMs}ms (${period.toUpperCase()}). Market: ${scanResult.marketStatus}. Top Volatile: ${scanResult.highestVolatile?.symbol} (${scanResult.highestVolatile?.intradaySpreadPercent}% spread).`);
 
       // Check for extreme alerts (> 8% intraday spread)
       const extreme = scanResult.topVolatileStocks.filter(s => s.intradaySpreadPercent >= 8 || s.volatilityScore >= 70);
@@ -127,9 +128,10 @@ class WorkerSimulatorEngine {
         timestamp: result.timestamp,
         highestTicker: result.highestVolatile?.symbol,
         topCount: result.topVolatileStocks.length,
+        period: result.period,
       },
     });
-    this.addLog('KV_PUT', `KV.put("latest_volatile_stocks", [Payload: ${(byteSize / 1024).toFixed(1)} KB])`);
+    this.addLog('KV_PUT', `KV.put("latest_volatile_stocks", [Payload: ${(byteSize / 1024).toFixed(1)} KB, Period: ${result.period}])`);
 
     // 2. Put history:<timestamp> (with 7-day TTL = 604800s)
     const unixTimestamp = new Date(result.timestamp).getTime();
@@ -140,6 +142,7 @@ class WorkerSimulatorEngine {
         scanId: result.scanId,
         topSymbol: result.highestVolatile?.symbol,
         spread: result.highestVolatile?.intradaySpreadPercent,
+        period: result.period,
       },
     });
     this.addLog('KV_PUT', `KV.put("${historyKey}", [TTL: 7d / 604,800s])`);
@@ -160,6 +163,7 @@ class WorkerSimulatorEngine {
       scannedTickers: result.scannedCount,
       executionDurationMs: result.executionDurationMs,
       marketSession: result.marketStatus,
+      period: result.period,
       topMover: result.highestVolatile ? {
         symbol: result.highestVolatile.symbol,
         spreadPct: result.highestVolatile.intradaySpreadPercent,
@@ -171,12 +175,12 @@ class WorkerSimulatorEngine {
   /**
    * Run Commodities Volatility Scan and persist to KV
    */
-  public async triggerCommoditiesScan(): Promise<CommodityScanResult | null> {
+  public async triggerCommoditiesScan(period: 'day' | 'week' | 'month' = 'day'): Promise<CommodityScanResult | null> {
     try {
-      this.addLog('CRON', `[CRON] Scanning global commodities universe (Energy, Metals, Agriculture)...`);
-      const result = await scanCommoditiesUniverse();
+      this.addLog('CRON', `[CRON] Scanning global commodities universe (Energy, Metals, Agriculture) [Period: ${period.toUpperCase()}]...`);
+      const result = await scanCommoditiesUniverse(period);
       await this.persistCommoditiesToKV(result);
-      this.addLog('CRON', `[CRON] Commodities scan completed. Top Mover: ${result.highestVolatile?.name} (${result.highestVolatile?.intradaySpreadPercent}% spread).`);
+      this.addLog('CRON', `[CRON] Commodities scan completed (${period.toUpperCase()}). Top Mover: ${result.highestVolatile?.name} (${result.highestVolatile?.intradaySpreadPercent}% spread).`);
       return result;
     } catch (err: any) {
       this.addLog('WARN', `[COMMODITIES ERROR] Scan failed: ${err?.message || err}`);
@@ -207,6 +211,55 @@ class WorkerSimulatorEngine {
     // 3. Put individual commodity lookups
     for (const item of result.topVolatileCommodities.slice(0, 6)) {
       await kvNamespaceInstance.put(`commodity:${item.symbol}:latest`, JSON.stringify(item), {
+        expirationTtl: 86400,
+      });
+    }
+  }
+
+  /**
+   * Run All-Market Gainers & Losers Scan across NYSE, NASDAQ, and AMEX and persist to KV
+   */
+  public async triggerAllMarketScan(period: 'day' | 'week' | 'month' = 'day'): Promise<AllMarketScanResult | null> {
+    try {
+      this.addLog('CRON', `[CRON] Scanning ALL OF THE MARKET (NYSE, NASDAQ, AMEX screener) [Period: ${period.toUpperCase()}]...`);
+      const result = await scanAllMarketUniverse(period);
+      await this.persistAllMarketToKV(result);
+      this.addLog(
+        'CRON',
+        `[CRON] All-Market scan completed (${period.toUpperCase()}). Scanned ${result.scannedCount} assets. Top Gainer: ${result.topGainers[0]?.symbol} (+${result.topGainers[0]?.changePercent}% / +$${result.topGainers[0]?.change}). Top Loser: ${result.topLosers[0]?.symbol} (${result.topLosers[0]?.changePercent}% / -$${Math.abs(result.topLosers[0]?.change || 0)}).`
+      );
+      return result;
+    } catch (err: any) {
+      this.addLog('WARN', `[ALL MARKET ERROR] Scan failed: ${err?.message || err}`);
+      return null;
+    }
+  }
+
+  private async persistAllMarketToKV(result: AllMarketScanResult) {
+    const payload = JSON.stringify(result);
+    const byteSize = new Blob([payload]).size;
+
+    // 1. Put latest_market_movers
+    await kvNamespaceInstance.put('latest_market_movers', payload, {
+      metadata: {
+        timestamp: result.timestamp,
+        period: result.period,
+        count: result.scannedCount,
+        topGainer: result.topGainers[0]?.symbol,
+        topLoser: result.topLosers[0]?.symbol,
+      },
+    });
+    this.addLog('KV_PUT', `KV.put("latest_market_movers", [Payload: ${(byteSize / 1024).toFixed(1)} KB, Period: ${result.period}])`);
+
+    // 2. Put market:gainers_losers:<period>
+    await kvNamespaceInstance.put(`market:gainers_losers:${result.period}`, payload, {
+      expirationTtl: 86400,
+    });
+
+    // 3. Put individual ticker lookups for top gainers & losers
+    const topKeyMovers = [...result.topGainers.slice(0, 5), ...result.topLosers.slice(0, 5)];
+    for (const stock of topKeyMovers) {
+      await kvNamespaceInstance.put(`ticker:${stock.symbol}:latest`, JSON.stringify(stock), {
         expirationTtl: 86400,
       });
     }

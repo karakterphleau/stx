@@ -6,14 +6,15 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { VolatilityRadar } from './components/VolatilityRadar';
-import { CommoditiesRadar } from './components/CommoditiesRadar';
+import { GainersLosersRadar } from './components/GainersLosersRadar';
 import { KVExplorer } from './components/KVExplorer';
 import { ApiConsole } from './components/ApiConsole';
 import { CodeViewer } from './components/CodeViewer';
 import { LogsConsole } from './components/LogsConsole';
 import { workerSimulatorInstance } from './services/workerSimulator';
-import { VolatilityScanResult } from './services/marketScanner';
+import { VolatilityScanResult, TimePeriod } from './services/marketScanner';
 import { CommodityScanResult } from './services/commodityScanner';
+import { AllMarketScanResult } from './services/allMarketScanner';
 import { kvNamespaceInstance } from './services/kvStore';
 import {
   Flame,
@@ -26,9 +27,11 @@ import {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('radar');
+  const [period, setPeriod] = useState<TimePeriod>('day');
   const [scanResult, setScanResult] = useState<VolatilityScanResult | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [commodityScanResult, setCommodityScanResult] = useState<CommodityScanResult | null>(null);
+  const [allMarketScanResult, setAllMarketScanResult] = useState<AllMarketScanResult | null>(null);
   const [isCommodityScanning, setIsCommodityScanning] = useState(false);
   const [selectedKeyForKV, setSelectedKeyForKV] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -40,20 +43,22 @@ export default function App() {
       setIsScanning(true);
       setIsCommodityScanning(true);
 
-      const [res, commRes] = await Promise.all([
-        workerSimulatorInstance.triggerScheduledCron(),
-        workerSimulatorInstance.triggerCommoditiesScan(),
+      const [res, commRes, marketRes] = await Promise.all([
+        workerSimulatorInstance.triggerScheduledCron(period),
+        workerSimulatorInstance.triggerCommoditiesScan(period),
+        workerSimulatorInstance.triggerAllMarketScan(period),
       ]);
 
       if (res) setScanResult(res);
       if (commRes) setCommodityScanResult(commRes);
+      if (marketRes) setAllMarketScanResult(marketRes);
 
       setIsScanning(false);
       setIsCommodityScanning(false);
     };
 
     init();
-  }, []);
+  }, [period]);
 
   // Continuous Real-Time Streaming Interval
   useEffect(() => {
@@ -62,16 +67,16 @@ export default function App() {
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
-          // Trigger silent background real-time sync
-          if (activeTab === 'commodities') {
-            workerSimulatorInstance.triggerCommoditiesScan().then((res) => {
-              if (res) setCommodityScanResult(res);
-            });
-          } else {
-            workerSimulatorInstance.triggerScheduledCron().then((res) => {
-              if (res) setScanResult(res);
-            });
-          }
+          // Trigger silent background real-time sync with active period
+          Promise.all([
+            workerSimulatorInstance.triggerScheduledCron(period),
+            workerSimulatorInstance.triggerCommoditiesScan(period),
+            workerSimulatorInstance.triggerAllMarketScan(period),
+          ]).then(([stockRes, commRes, marketRes]) => {
+            if (stockRes) setScanResult(stockRes);
+            if (commRes) setCommodityScanResult(commRes);
+            if (marketRes) setAllMarketScanResult(marketRes);
+          });
           return 10;
         }
         return prev - 1;
@@ -79,11 +84,32 @@ export default function App() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [autoRefresh, activeTab]);
+  }, [autoRefresh, activeTab, period]);
+
+  const handlePeriodChange = async (newPeriod: TimePeriod) => {
+    if (newPeriod === period) return;
+    setPeriod(newPeriod);
+    setIsScanning(true);
+    setIsCommodityScanning(true);
+
+    const [stockRes, commRes, marketRes] = await Promise.all([
+      workerSimulatorInstance.triggerScheduledCron(newPeriod),
+      workerSimulatorInstance.triggerCommoditiesScan(newPeriod),
+      workerSimulatorInstance.triggerAllMarketScan(newPeriod),
+    ]);
+
+    if (stockRes) setScanResult(stockRes);
+    if (commRes) setCommodityScanResult(commRes);
+    if (marketRes) setAllMarketScanResult(marketRes);
+
+    setIsScanning(false);
+    setIsCommodityScanning(false);
+    setCountdown(10);
+  };
 
   const handleTriggerScan = async () => {
     setIsScanning(true);
-    const res = await workerSimulatorInstance.triggerScheduledCron();
+    const res = await workerSimulatorInstance.triggerScheduledCron(period);
     if (res) {
       setScanResult(res);
     }
@@ -93,10 +119,26 @@ export default function App() {
 
   const handleTriggerCommoditiesScan = async () => {
     setIsCommodityScanning(true);
-    const res = await workerSimulatorInstance.triggerCommoditiesScan();
+    const res = await workerSimulatorInstance.triggerCommoditiesScan(period);
     if (res) {
       setCommodityScanResult(res);
     }
+    setIsCommodityScanning(false);
+    setCountdown(10);
+  };
+
+  const handleTriggerAllScan = async () => {
+    setIsScanning(true);
+    setIsCommodityScanning(true);
+    const [stockRes, commRes, marketRes] = await Promise.all([
+      workerSimulatorInstance.triggerScheduledCron(period),
+      workerSimulatorInstance.triggerCommoditiesScan(period),
+      workerSimulatorInstance.triggerAllMarketScan(period),
+    ]);
+    if (stockRes) setScanResult(stockRes);
+    if (commRes) setCommodityScanResult(commRes);
+    if (marketRes) setAllMarketScanResult(marketRes);
+    setIsScanning(false);
     setIsCommodityScanning(false);
     setCountdown(10);
   };
@@ -128,7 +170,7 @@ export default function App() {
     <div className="min-h-screen bg-[#08090d] text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
       {/* Interactive Top Header */}
       <Header
-        onScanTriggered={handleTriggerScan}
+        onScanTriggered={handleTriggerAllScan}
         isScanning={isScanning || isCommodityScanning}
         onSelectTab={setActiveTab}
         activeTab={activeTab}
@@ -138,6 +180,8 @@ export default function App() {
         autoRefresh={autoRefresh}
         onToggleAutoRefresh={() => setAutoRefresh(!autoRefresh)}
         countdownSeconds={countdown}
+        period={period}
+        onSelectPeriod={handlePeriodChange}
       />
 
       {/* Real-Time Live Ticker Tape Bar */}
@@ -147,6 +191,9 @@ export default function App() {
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
             <span className="font-bold text-white uppercase tracking-wider">Live Exchange Feed:</span>
             <span className="text-emerald-400 hidden sm:inline">100% Real-Time</span>
+            <span className="text-amber-400 bg-amber-950/80 border border-amber-500/40 px-1.5 py-0.2 rounded font-bold uppercase text-[10px]">
+              {period === 'week' ? 'Week (5D)' : period === 'month' ? 'Month (1M)' : 'Day (1D)'}
+            </span>
           </div>
 
           <div className="flex items-center space-x-5 overflow-x-auto no-scrollbar font-mono text-xs">
@@ -174,20 +221,28 @@ export default function App() {
 
       {/* Main App Content Body */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'radar' && (
+        {(activeTab === 'radar' || activeTab === 'commodities') && (
           <VolatilityRadar
             scanResult={scanResult}
+            commodityScanResult={commodityScanResult}
             onInspectKey={handleInspectKey}
-            onRefresh={handleTriggerScan}
+            onRefresh={handleTriggerAllScan}
+            isScanning={isScanning || isCommodityScanning}
+            period={period}
+            onSelectPeriod={handlePeriodChange}
           />
         )}
 
-        {activeTab === 'commodities' && (
-          <CommoditiesRadar
-            scanResult={commodityScanResult}
+        {activeTab === 'gainers-losers' && (
+          <GainersLosersRadar
+            scanResult={scanResult}
+            commodityScanResult={commodityScanResult}
+            allMarketScanResult={allMarketScanResult}
             onInspectKey={handleInspectKey}
-            onRefresh={handleTriggerCommoditiesScan}
-            isScanning={isCommodityScanning}
+            onRefresh={handleTriggerAllScan}
+            isScanning={isScanning || isCommodityScanning}
+            period={period}
+            onSelectPeriod={handlePeriodChange}
           />
         )}
 

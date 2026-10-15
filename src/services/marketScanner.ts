@@ -8,6 +8,8 @@
  *  - Composite Volatility Rating (0 - 100 scale)
  */
 
+export type TimePeriod = 'day' | 'week' | 'month';
+
 export interface StockQuote {
   symbol: string;
   name: string;
@@ -30,6 +32,8 @@ export interface StockQuote {
   timestamp: string;
   isRealTime?: boolean;
   exchangeSource?: string;
+  period?: TimePeriod;
+  periodLabel?: string;
 }
 
 export interface VolatilityScanResult {
@@ -46,6 +50,7 @@ export interface VolatilityScanResult {
   isRealTime: boolean;
   dataSource: string;
   lastSyncTime: string;
+  period: TimePeriod;
 }
 
 export interface UniverseItem {
@@ -113,7 +118,10 @@ export function injectShock(symbol: string, direction: 'UP' | 'DOWN' | 'RANDOM')
 /**
  * Generate high-fidelity evaluated stock quotes
  */
-export async function scanMarketUniverse(customSymbols?: string[]): Promise<VolatilityScanResult> {
+export async function scanMarketUniverse(
+  customSymbols?: string[],
+  period: TimePeriod = 'day'
+): Promise<VolatilityScanResult> {
   const startTime = Date.now();
   const universe = [...INITIAL_UNIVERSE];
 
@@ -140,7 +148,7 @@ export async function scanMarketUniverse(customSymbols?: string[]): Promise<Vola
   // 1. Attempt to fetch real-time stock market data from the backend proxy
   try {
     const symbolsParam = encodeURIComponent(allSymbols.join(','));
-    const response = await fetch(`/api/live-market?type=stocks&symbols=${symbolsParam}`, {
+    const response = await fetch(`/api/live-market?type=stocks&symbols=${symbolsParam}&period=${period}`, {
       headers: { 'Accept': 'application/json' },
     });
 
@@ -153,7 +161,8 @@ export async function scanMarketUniverse(customSymbols?: string[]): Promise<Vola
           }
         });
         isRealTimeFeed = true;
-        dataSource = 'US Exchanges Live Feed (NASDAQ / NYSE / CBOE)';
+        const periodSuffix = period === 'week' ? ' (Weekly 5D)' : period === 'month' ? ' (Monthly 30D)' : ' (Trading Day 1D)';
+        dataSource = `US Exchanges Live Feed (NASDAQ / NYSE / CBOE)${periodSuffix}`;
       }
     }
   } catch (err) {
@@ -317,6 +326,8 @@ export async function scanMarketUniverse(customSymbols?: string[]): Promise<Vola
       timestamp: quoteTimestamp,
       isRealTime: Boolean(liveData),
       exchangeSource,
+      period,
+      periodLabel: period === 'week' ? 'Week (5D)' : period === 'month' ? 'Month (30D)' : 'Day (1D)',
     };
   });
 
@@ -349,6 +360,7 @@ export async function scanMarketUniverse(customSymbols?: string[]): Promise<Vola
     isRealTime: isRealTimeFeed,
     dataSource,
     lastSyncTime: now.toLocaleTimeString(),
+    period,
   };
 }
 

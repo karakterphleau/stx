@@ -17,6 +17,7 @@ import {
   RotateCw,
 } from 'lucide-react';
 import { CommodityScanResult, CommodityQuote, injectCommodityShock } from '../services/commodityScanner';
+import { TimePeriod } from '../services/marketScanner';
 import { workerSimulatorInstance } from '../services/workerSimulator';
 
 interface CommoditiesRadarProps {
@@ -24,6 +25,8 @@ interface CommoditiesRadarProps {
   onInspectKey: (key: string) => void;
   onRefresh: () => void;
   isScanning?: boolean;
+  period?: TimePeriod;
+  onSelectPeriod?: (period: TimePeriod) => void;
 }
 
 export const CommoditiesRadar: React.FC<CommoditiesRadarProps> = ({
@@ -31,6 +34,8 @@ export const CommoditiesRadar: React.FC<CommoditiesRadarProps> = ({
   onInspectKey,
   onRefresh,
   isScanning = false,
+  period = 'day',
+  onSelectPeriod,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
@@ -240,6 +245,48 @@ export const CommoditiesRadar: React.FC<CommoditiesRadarProps> = ({
               <span>All Commodities ({filtered.length})</span>
             </button>
           </div>
+
+          {/* Period Selector in CommoditiesRadar */}
+          {onSelectPeriod && (
+            <div className="flex items-center space-x-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800 self-start lg:self-auto">
+              <span className="text-[11px] font-mono text-slate-400 font-semibold px-1.5 hidden sm:inline">
+                Period:
+              </span>
+              <button
+                type="button"
+                onClick={() => onSelectPeriod('day')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded transition-all ${
+                  period === 'day'
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Day (1D)
+              </button>
+              <button
+                type="button"
+                onClick={() => onSelectPeriod('week')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded transition-all ${
+                  period === 'week'
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Week (5D)
+              </button>
+              <button
+                type="button"
+                onClick={() => onSelectPeriod('month')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded transition-all ${
+                  period === 'month'
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Month (1M)
+              </button>
+            </div>
+          )}
 
           {/* Search, Category, and Action Controls */}
           <div className="flex flex-wrap items-center gap-2.5">
@@ -464,8 +511,8 @@ const CommodityTableCard: React.FC<CommodityTableCardProps> = ({
                 <th className="py-3 px-5 w-12 text-center">Rank</th>
                 <th className="py-3 px-5">Commodity / Contract</th>
                 <th className="py-3 px-5 text-right">Price / Unit</th>
-                <th className="py-3 px-5 text-right">24h Net</th>
-                <th className="py-3 px-5 min-w-[180px]">Intraday Range (Low → High)</th>
+                <th className="py-3 px-5 text-right">Net Move ({commodities[0]?.periodLabel || '1D'})</th>
+                <th className="py-3 px-5 min-w-[180px]">Period Range (Low → High)</th>
                 <th className="py-3 px-5 text-right">Spread %</th>
                 <th className="py-3 px-5 text-right">Traded Contracts</th>
                 <th className="py-3 px-5 text-center">Score</th>
