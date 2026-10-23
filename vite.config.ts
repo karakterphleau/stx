@@ -141,25 +141,28 @@ async function fetchAllMarketScreenerQuotes(period: 'day' | 'week' | 'month' = '
       'day_gainers',
       'day_losers',
       'most_actives',
-      'growth_technology_stocks',
       'small_cap_gainers',
+      'aggressive_small_caps',
+      'top_etfs_us',
+      'technology_etfs',
+      'most_shorted_stocks',
     ];
 
     // High nominal price equities that produce the market's highest dollar amount gains and drops ($ gains / $ drops)
     const highDollarLeaders = [
       'NVR', 'AZO', 'SEB', 'FCNCA', 'MKL', 'BKNG', 'TDG', 'FICO', 'GWW', 'FIX',
       'REGN', 'NOW', 'EQIX', 'COST', 'LLY', 'BLK', 'URI', 'NFLX', 'LRCX', 'KLAC',
-      'MPWR', 'ASML', 'PH', 'MCK', 'SNPS', 'ISRG', 'DE', 'LIN', 'UNH', 'SPGI'
+      'MPWR', 'ASML', 'PH', 'MCK', 'PANW', 'NET', 'MU', 'CRWD', 'DAVE', 'KNSL', 'BE', 'CORT', 'LKQ', 'RGC', 'UWMC', 'BKYI'
     ];
 
     const chartRange = period === 'month' ? '1mo' : period === 'week' ? '5d' : '1d';
-    const chartInterval = period === 'month' ? '1d' : period === 'week' ? '1d' : '15m';
+    const chartInterval = '1d';
 
     const [screenerResponses, highDollarResponses] = await Promise.all([
       Promise.all(
         scrIds.map(id =>
           fetch(
-            `https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&lang=en-US&region=US&scrIds=${id}&count=50`,
+            `https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&lang=en-US&region=US&scrIds=${id}&count=100`,
             { headers }
           )
             .then(r => (r.ok ? r.json() : null))
@@ -255,6 +258,9 @@ async function fetchAllMarketScreenerQuotes(period: 'day' | 'week' | 'month' = '
         const open = typeof q.open === 'number' ? q.open : (typeof q.regularMarketOpen === 'number' ? q.regularMarketOpen : prevClose);
         const volume = typeof q.volume === 'number' ? q.volume : (typeof q.regularMarketVolume === 'number' ? q.regularMarketVolume : 1000000);
 
+        const rawType = q.quoteType || q.typeDisp || 'EQUITY';
+        const quoteType = rawType === 'ETF' ? 'ETF' : (rawType === 'MUTUALFUND' ? 'FUND' : (rawType.includes('WARRANT') ? 'WARRANT' : 'STOCK'));
+
         return {
           symbol: q.symbol,
           name: q.name || q.shortName || q.longName || q.displayName || q.symbol,
@@ -267,6 +273,7 @@ async function fetchAllMarketScreenerQuotes(period: 'day' | 'week' | 'month' = '
           changePercent: Number(changePercent.toFixed(2)),
           volume,
           period: 'day',
+          quoteType,
           exchangeName: q.exchangeName || q.fullExchangeName || q.exchange || 'US Market',
           sparkline: q.sparkline || [prevClose, price],
           timestamp: new Date().toISOString(),

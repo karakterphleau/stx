@@ -19,6 +19,7 @@ export interface AllMarketStockQuote {
   timestamp: string;
   isRealTime: boolean;
   exchangeSource: string;
+  securityType?: 'STOCK' | 'ETF' | 'WARRANT' | 'FUND' | string;
   kvKey: string;
   period: TimePeriod;
   periodLabel: string;
@@ -140,6 +141,25 @@ const BROAD_MARKET_BASELINE: Array<{
   { symbol: 'AFRM', name: 'Affirm Holdings', sector: 'Financial Services / BNPL', basePrice: 44.0, typicalSpread: 5.7 },
   { symbol: 'LUNR', name: 'Intuitive Machines', sector: 'Aerospace / Space Exploration', basePrice: 8.4, typicalSpread: 7.5 },
 
+  // Active Market Movers Across Whole US Market (Equities, Warrants, Small Caps)
+  { symbol: 'FIX', name: 'Comfort Systems USA', sector: 'Industrials / Engineering & Construction', basePrice: 1160.86, typicalSpread: 4.8 },
+  { symbol: 'PANW', name: 'Palo Alto Networks', sector: 'Technology / Cybersecurity', basePrice: 380.55, typicalSpread: 3.2 },
+  { symbol: 'NET', name: 'Cloudflare, Inc.', sector: 'Technology / Cloud & Edge Networking', basePrice: 325.73, typicalSpread: 3.8 },
+  { symbol: 'MU', name: 'Micron Technology', sector: 'Technology / Semiconductors', basePrice: 877.55, typicalSpread: 2.8 },
+  { symbol: 'CRWD', name: 'CrowdStrike Holdings', sector: 'Technology / Cybersecurity', basePrice: 257.57, typicalSpread: 3.9 },
+  { symbol: 'UWMC', name: 'UWM Holdings Corp.', sector: 'Financial Services / Mortgage Lending', basePrice: 1.45, typicalSpread: 8.2 },
+  { symbol: 'BKYI', name: 'BIO-key International', sector: 'Technology / Biometric Security', basePrice: 3.39, typicalSpread: 9.1 },
+  { symbol: 'RHI', name: 'Robert Half Inc.', sector: 'Industrials / Staffing & Talent', basePrice: 45.87, typicalSpread: 5.4 },
+  { symbol: 'CNDT', name: 'Conduent Incorporated', sector: 'Technology / Business Services', basePrice: 1.79, typicalSpread: 7.8 },
+  { symbol: 'AUROW', name: 'Aurora Innovation Warrants', sector: 'Technology / Autonomous Driving', basePrice: 0.0128, typicalSpread: 12.5 },
+  { symbol: 'LKQ', name: 'LKQ Corporation', sector: 'Consumer Discretionary / Auto Parts', basePrice: 17.42, typicalSpread: 6.4 },
+  { symbol: 'RGC', name: 'Regencell Bioscience', sector: 'Healthcare / Biotechnology', basePrice: 7.67, typicalSpread: 9.8 },
+  { symbol: 'CORT', name: 'Corcept Therapeutics', sector: 'Healthcare / Pharmaceuticals', basePrice: 85.86, typicalSpread: 7.1 },
+  { symbol: 'DFNS', name: 'T3 Defense Inc.', sector: 'Industrials / Aerospace & Defense', basePrice: 4.11, typicalSpread: 8.4 },
+  { symbol: 'TNGX', name: 'Tango Therapeutics', sector: 'Healthcare / Oncology Biotech', basePrice: 23.34, typicalSpread: 7.9 },
+  { symbol: 'BE', name: 'Bloom Energy Corp.', sector: 'Clean Energy / Fuel Cells', basePrice: 193.30, typicalSpread: 6.5 },
+  { symbol: 'CNXT', name: 'VanEck ChiNext Innovators ETF', sector: 'Index ETF / Thematic Tech', basePrice: 38.39, typicalSpread: 2.1 },
+
   // Index Benchmarks
   { symbol: 'SPY', name: 'SPDR S&P 500 ETF Trust', sector: 'Index ETF / Large-Cap Benchmark', basePrice: 582.0, typicalSpread: 0.9 },
   { symbol: 'QQQ', name: 'Invesco QQQ Trust', sector: 'Index ETF / Nasdaq-100 Benchmark', basePrice: 494.0, typicalSpread: 1.1 },
@@ -257,6 +277,7 @@ export async function scanAllMarketUniverse(period: TimePeriod = 'day'): Promise
         timestamp: q.timestamp || new Date().toISOString(),
         isRealTime: true,
         exchangeSource: q.exchangeName || 'US Exchange',
+        securityType: q.quoteType || 'STOCK',
         kvKey: `ticker:${sym}:latest`,
         period,
         periodLabel,
@@ -341,18 +362,35 @@ export function getInitialAllMarketMovers(period: TimePeriod = 'day'): AllMarket
   const periodLabel = period === 'week' ? 'Week (5D)' : period === 'month' ? 'Month (30D)' : 'Day (1D)';
   const mult = period === 'month' ? 3.2 : period === 'week' ? 1.8 : 1.0;
 
-  // Real-world high dollar benchmark quotes
-  const specialQuotes: Record<string, { price: number; previousClose: number; change: number; changePercent: number; volume: number; high: number; low: number }> = {
-    NVR: { price: 5977.67, previousClose: 5828.00, change: 149.67 * mult, changePercent: 2.57 * mult, volume: 40309, high: 6024.27, low: 5839.21 },
-    AZO: { price: 3160.18, previousClose: 3097.88, change: 62.30 * mult, changePercent: 2.01 * mult, volume: 152000, high: 3180.00, low: 3088.00 },
-    FIX: { price: 1397.09, previousClose: 1464.07, change: -66.98 * mult, changePercent: -4.57 * mult, volume: 220000, high: 1470.00, low: 1385.00 },
-    LLY: { price: 1283.66, previousClose: 1240.34, change: 43.32 * mult, changePercent: 3.49 * mult, volume: 2100000, high: 1290.00, low: 1238.00 },
-    MKL: { price: 1884.10, previousClose: 1855.84, change: 28.26 * mult, changePercent: 1.52 * mult, volume: 85000, high: 1895.00, low: 1850.00 },
-    SEB: { price: 3808.84, previousClose: 3788.00, change: 20.84 * mult, changePercent: 0.55 * mult, volume: 12000, high: 3820.00, low: 3780.00 },
-    BKNG: { price: 4420.00, previousClose: 4390.00, change: 30.00 * mult, changePercent: 0.68 * mult, volume: 190000, high: 4450.00, low: 4380.00 },
-    TDG: { price: 1320.00, previousClose: 1302.00, change: 18.00 * mult, changePercent: 1.38 * mult, volume: 210000, high: 1325.00, low: 1300.00 },
-    FICO: { price: 1820.00, previousClose: 1795.00, change: 25.00 * mult, changePercent: 1.39 * mult, volume: 160000, high: 1835.00, low: 1790.00 },
-    GWW: { price: 1045.00, previousClose: 1032.00, change: 13.00 * mult, changePercent: 1.26 * mult, volume: 240000, high: 1050.00, low: 1030.00 },
+  // Real-world high dollar and percentage benchmark quotes from entire US market
+  const specialQuotes: Record<string, { price: number; previousClose: number; change: number; changePercent: number; volume: number; high: number; low: number; quoteType?: string }> = {
+    FCNCA: { price: 2375.84, previousClose: 2196.76, change: 179.08 * mult, changePercent: 8.15 * mult, volume: 298540, high: 2429.96, low: 2281.62, quoteType: 'STOCK' },
+    PANW: { price: 380.55, previousClose: 354.92, change: 25.63 * mult, changePercent: 7.22 * mult, volume: 6561456, high: 381.45, low: 351.24, quoteType: 'STOCK' },
+    NET: { price: 325.73, previousClose: 303.61, change: 22.12 * mult, changePercent: 7.29 * mult, volume: 4166087, high: 327.99, low: 299.27, quoteType: 'STOCK' },
+    SEB: { price: 3885.40, previousClose: 3863.58, change: 21.82 * mult, changePercent: 0.56 * mult, volume: 10476, high: 3897.82, low: 3813.70, quoteType: 'STOCK' },
+    MU: { price: 877.55, previousClose: 856.49, change: 21.06 * mult, changePercent: 2.46 * mult, volume: 21123737, high: 891.89, low: 858.34, quoteType: 'STOCK' },
+    CRWD: { price: 257.57, previousClose: 237.94, change: 19.63 * mult, changePercent: 8.25 * mult, volume: 13342948, high: 257.91, low: 234.79, quoteType: 'STOCK' },
+    UWMC: { price: 1.45, previousClose: 1.15, change: 0.30 * mult, changePercent: 26.09 * mult, volume: 25400000, high: 1.52, low: 1.12, quoteType: 'STOCK' },
+    BKYI: { price: 3.39, previousClose: 2.74, change: 0.65 * mult, changePercent: 23.72 * mult, volume: 4200000, high: 3.55, low: 2.70, quoteType: 'STOCK' },
+    RHI: { price: 45.87, previousClose: 37.68, change: 8.19 * mult, changePercent: 21.74 * mult, volume: 3800000, high: 46.50, low: 37.50, quoteType: 'STOCK' },
+    CNDT: { price: 1.79, previousClose: 1.49, change: 0.30 * mult, changePercent: 20.13 * mult, volume: 2800000, high: 1.84, low: 1.48, quoteType: 'STOCK' },
+    AUROW: { price: 0.0128, previousClose: 0.0109, change: 0.0019 * mult, changePercent: 17.43 * mult, volume: 950000, high: 0.014, low: 0.010, quoteType: 'WARRANT' },
+    CNXT: { price: 38.39, previousClose: 37.07, change: 1.32 * mult, changePercent: 3.56 * mult, volume: 450000, high: 38.60, low: 37.00, quoteType: 'ETF' },
+    NVR: { price: 5983.68, previousClose: 6110.63, change: -126.95 * mult, changePercent: -2.08 * mult, volume: 68550, high: 6114.45, low: 5951.00, quoteType: 'STOCK' },
+    FIX: { price: 1160.86, previousClose: 1279.37, change: -118.51 * mult, changePercent: -9.26 * mult, volume: 1367036, high: 1212.52, low: 1111.11, quoteType: 'STOCK' },
+    AZO: { price: 3200.76, previousClose: 3270.70, change: -69.94 * mult, changePercent: -2.14 * mult, volume: 118410, high: 3267.50, low: 3200.76, quoteType: 'STOCK' },
+    TDG: { price: 1104.84, previousClose: 1141.74, change: -36.90 * mult, changePercent: -3.23 * mult, volume: 437619, high: 1123.23, low: 1082.59, quoteType: 'STOCK' },
+    MKL: { price: 1870.09, previousClose: 1905.39, change: -35.30 * mult, changePercent: -1.85 * mult, volume: 64879, high: 1908.10, low: 1866.60, quoteType: 'STOCK' },
+    LLY: { price: 1273.46, previousClose: 1306.69, change: -33.23 * mult, changePercent: -2.54 * mult, volume: 2269331, high: 1307.92, low: 1257.62, quoteType: 'STOCK' },
+    LKQ: { price: 17.42, previousClose: 22.47, change: -5.05 * mult, changePercent: -22.47 * mult, volume: 8200000, high: 22.50, low: 17.10, quoteType: 'STOCK' },
+    RGC: { price: 7.67, previousClose: 9.81, change: -2.14 * mult, changePercent: -21.81 * mult, volume: 1100000, high: 9.85, low: 7.50, quoteType: 'STOCK' },
+    CORT: { price: 85.86, previousClose: 107.50, change: -21.64 * mult, changePercent: -20.13 * mult, volume: 3400000, high: 107.50, low: 84.20, quoteType: 'STOCK' },
+    DFNS: { price: 4.11, previousClose: 5.05, change: -0.94 * mult, changePercent: -18.61 * mult, volume: 1900000, high: 5.05, low: 4.02, quoteType: 'STOCK' },
+    TNGX: { price: 23.34, previousClose: 27.93, change: -4.59 * mult, changePercent: -16.43 * mult, volume: 1450000, high: 27.90, low: 23.00, quoteType: 'STOCK' },
+    BE: { price: 193.30, previousClose: 217.77, change: -24.47 * mult, changePercent: -11.24 * mult, volume: 4800000, high: 218.00, low: 190.50, quoteType: 'STOCK' },
+    BKNG: { price: 155.83, previousClose: 161.10, change: -5.27 * mult, changePercent: -3.27 * mult, volume: 5930000, high: 159.43, low: 155.58, quoteType: 'STOCK' },
+    FICO: { price: 815.31, previousClose: 823.27, change: -7.96 * mult, changePercent: -0.97 * mult, volume: 381892, high: 828.62, low: 805.14, quoteType: 'STOCK' },
+    GWW: { price: 1349.90, previousClose: 1360.08, change: -10.18 * mult, changePercent: -0.75 * mult, volume: 209065, high: 1363.61, low: 1344.45, quoteType: 'STOCK' },
   };
 
   const stocks: AllMarketStockQuote[] = BROAD_MARKET_BASELINE.map((b) => {
@@ -389,6 +427,8 @@ export function getInitialAllMarketMovers(period: TimePeriod = 'day'): AllMarket
     if (changePercent >= 5) status = 'SURGING';
     else if (changePercent <= -5) status = 'PLUNGING';
 
+    const rawSecType = special?.quoteType || (b.sector.includes('ETF') ? 'ETF' : (b.name.includes('Warrant') ? 'WARRANT' : 'STOCK'));
+
     return {
       symbol: b.symbol,
       name: b.name,
@@ -408,6 +448,7 @@ export function getInitialAllMarketMovers(period: TimePeriod = 'day'): AllMarket
       timestamp: new Date().toISOString(),
       isRealTime: true,
       exchangeSource: 'US Exchanges (NYSE / NASDAQ)',
+      securityType: rawSecType,
       kvKey: `ticker:${b.symbol}:latest`,
       period,
       periodLabel,

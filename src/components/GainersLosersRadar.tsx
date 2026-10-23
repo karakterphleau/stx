@@ -29,6 +29,7 @@ export interface UnifiedMover {
   symbol: string;
   name: string;
   assetType: 'STOCK' | 'COMMODITY';
+  securityType?: string; // 'STOCK' | 'ETF' | 'WARRANT' | 'COMMODITY' | string
   category: string;
   price: number;
   open: number;
@@ -70,7 +71,7 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
   onSelectPeriod,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [assetFilter, setAssetFilter] = useState<'ALL' | 'STOCKS' | 'COMMODITIES'>('ALL');
+  const [assetFilter, setAssetFilter] = useState<'ALL' | 'STOCKS' | 'ETFS' | 'COMMODITIES'>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'split' | 'gainers' | 'losers' | 'combined'>('split');
   // Sort metric: 'dollar' (dollar amounts) vs 'percent' (percentage), plus volume and price
@@ -81,17 +82,19 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
   const unifiedMovers: UnifiedMover[] = useMemo(() => {
     const list: UnifiedMover[] = [];
 
-    // 1. Stocks from ALL OF THE MARKET (NYSE, NASDAQ, AMEX full market screener)
+    // 1. Stocks and Securities from ALL OF THE MARKET (NYSE, NASDAQ, AMEX full market screener)
     const marketStocks = (allMarketScanResult && allMarketScanResult.stocks && allMarketScanResult.stocks.length > 0)
       ? allMarketScanResult.stocks
       : getInitialAllMarketMovers(period).stocks;
 
     marketStocks.forEach((stock) => {
+      const secType = stock.securityType || (stock.sector?.includes('ETF') ? 'ETF' : (stock.name?.includes('Warrant') ? 'WARRANT' : 'STOCK'));
       list.push({
         id: `stock-${stock.symbol}`,
         symbol: stock.symbol,
         name: stock.name,
         assetType: 'STOCK',
+        securityType: secType,
         category: stock.sector,
         price: stock.price,
         open: stock.open,
@@ -120,6 +123,7 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
           symbol: comm.tickerCode,
           name: comm.name,
           assetType: 'COMMODITY',
+          securityType: 'COMMODITY',
           category: comm.category,
           price: comm.price,
           open: comm.open,
@@ -145,7 +149,11 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
   }, [allMarketScanResult, scanResult, commodityScanResult, period]);
 
   const totalStocksCount = useMemo(() => {
-    return unifiedMovers.filter((m) => m.assetType === 'STOCK').length;
+    return unifiedMovers.filter((m) => m.assetType === 'STOCK' && m.securityType !== 'ETF').length;
+  }, [unifiedMovers]);
+
+  const totalEtfsCount = useMemo(() => {
+    return unifiedMovers.filter((m) => m.securityType === 'ETF').length;
   }, [unifiedMovers]);
 
   const totalCommoditiesCount = useMemo(() => {
@@ -155,17 +163,19 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
   // Dynamic available categories from the unified market universe
   const availableCategories = useMemo(() => {
     const relevant = unifiedMovers.filter((item) => {
-      if (assetFilter === 'STOCKS') return item.assetType === 'STOCK';
+      if (assetFilter === 'STOCKS') return item.securityType === 'STOCK';
+      if (assetFilter === 'ETFS') return item.securityType === 'ETF';
       if (assetFilter === 'COMMODITIES') return item.assetType === 'COMMODITY';
       return true;
     });
     return ['ALL', ...Array.from(new Set(relevant.map((i) => i.category)))];
   }, [unifiedMovers, assetFilter]);
 
-  // Filter by asset type, category & search query
+  // Filter by security type, category & search query
   const filteredMovers = useMemo(() => {
     return unifiedMovers.filter((item) => {
-      if (assetFilter === 'STOCKS' && item.assetType !== 'STOCK') return false;
+      if (assetFilter === 'STOCKS' && item.securityType !== 'STOCK') return false;
+      if (assetFilter === 'ETFS' && item.securityType !== 'ETF') return false;
       if (assetFilter === 'COMMODITIES' && item.assetType !== 'COMMODITY') return false;
 
       if (categoryFilter !== 'ALL' && item.category !== categoryFilter) return false;
@@ -175,7 +185,8 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
       return (
         item.symbol.toLowerCase().includes(q) ||
         item.name.toLowerCase().includes(q) ||
-        item.category.toLowerCase().includes(q)
+        item.category.toLowerCase().includes(q) ||
+        (item.securityType && item.securityType.toLowerCase().includes(q))
       );
     });
   }, [unifiedMovers, assetFilter, categoryFilter, searchQuery]);
@@ -397,10 +408,10 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
                     ? 'bg-slate-800 text-amber-300 border border-amber-500/40 shadow-sm font-bold'
                     : 'text-slate-400 hover:text-white hover:bg-slate-900'
                 }`}
-                title="View both Stocks and Commodities in this table"
+                title="View all securities in this table"
               >
                 <Layers className="w-3.5 h-3.5 text-amber-400" />
-                <span>Both</span>
+                <span>All Securities</span>
                 <span className="text-[10px] font-mono text-slate-300 bg-slate-900 px-1 rounded ml-0.5">
                   {unifiedMovers.length}
                 </span>
@@ -413,12 +424,28 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
                     ? 'bg-cyan-950/90 text-cyan-300 border border-cyan-500/50 shadow-sm font-bold'
                     : 'text-slate-400 hover:text-white hover:bg-slate-900'
                 }`}
-                title="View only Stocks in this table"
+                title="View only Common Stocks in this table"
               >
                 <Activity className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Only Stocks</span>
+                <span>Stocks</span>
                 <span className="text-[10px] font-mono text-cyan-300 bg-cyan-950 px-1 rounded ml-0.5">
                   {totalStocksCount}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAssetFilter('ETFS')}
+                className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                  assetFilter === 'ETFS'
+                    ? 'bg-purple-950/90 text-purple-300 border border-purple-500/50 shadow-sm font-bold'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                }`}
+                title="View only ETFs and Index Funds in this table"
+              >
+                <BarChart2 className="w-3.5 h-3.5 text-purple-400" />
+                <span>ETFs</span>
+                <span className="text-[10px] font-mono text-purple-300 bg-purple-950 px-1 rounded ml-0.5">
+                  {totalEtfsCount}
                 </span>
               </button>
               <button
@@ -432,7 +459,7 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
                 title="View only Commodities in this table"
               >
                 <Wheat className="w-3.5 h-3.5 text-amber-400" />
-                <span>Only Commodities</span>
+                <span>Commodities</span>
                 <span className="text-[10px] font-mono text-amber-300 bg-amber-950 px-1 rounded ml-0.5">
                   {totalCommoditiesCount}
                 </span>
@@ -592,14 +619,18 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
                                 setAssetFilter('ALL');
                               }
                             }}
-                            title={`Currently viewing ${assetFilter === 'ALL' ? 'both' : assetFilter === 'STOCKS' ? 'only stocks' : 'only commodities'}. Click to toggle.`}
+                            title={`Security Type: ${item.securityType || item.assetType}`}
                             className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider transition-all hover:scale-105 cursor-pointer ${
-                              item.assetType === 'STOCK'
-                                ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/60 hover:border-cyan-400'
-                                : 'bg-amber-950/80 text-amber-300 border border-amber-800/60 hover:border-amber-400'
+                              item.securityType === 'ETF'
+                                ? 'bg-purple-950/80 text-purple-300 border border-purple-800/60'
+                                : item.securityType === 'WARRANT'
+                                ? 'bg-fuchsia-950/80 text-fuchsia-300 border border-fuchsia-800/60'
+                                : item.assetType === 'COMMODITY'
+                                ? 'bg-amber-950/80 text-amber-300 border border-amber-800/60'
+                                : 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/60'
                             }`}
                           >
-                            {item.assetType}
+                            {item.securityType || item.assetType}
                           </button>
                           {item.isRealTime && (
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" title="Live real-time feed" />
@@ -980,10 +1011,10 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
             </select>
           </div>
 
-          {/* Asset Class Filter Tabs: Both / Only Stocks / Only Commodities */}
+          {/* Asset Class Filter Tabs: All Securities / Stocks / ETFs / Commodities */}
           <div className="flex items-center space-x-2 self-start lg:self-auto">
             <span className="text-[11px] font-mono text-slate-400 font-semibold hidden sm:inline">
-              Table Scope:
+              Scope:
             </span>
             <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 overflow-x-auto text-xs shadow-inner">
               <button
@@ -994,10 +1025,10 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm font-bold'
                     : 'text-slate-400 hover:text-white'
                 }`}
-                title="View both Stocks and Commodities in the table"
+                title="View all securities in the market"
               >
                 <Layers className="w-3.5 h-3.5 text-amber-400" />
-                <span>Both (Stocks & Commodities)</span>
+                <span>All Securities</span>
                 <span className="text-[10px] font-mono text-slate-300 bg-slate-850 px-1.5 py-0.5 rounded ml-1">
                   {unifiedMovers.length}
                 </span>
@@ -1010,12 +1041,28 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm font-bold'
                     : 'text-slate-400 hover:text-white'
                 }`}
-                title="View only Stocks in the table"
+                title="View common stocks in the table"
               >
                 <Activity className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Only Stocks</span>
+                <span>Stocks</span>
                 <span className="text-[10px] font-mono text-cyan-300 bg-cyan-950 px-1.5 py-0.5 rounded border border-cyan-800/80 ml-1">
                   {totalStocksCount}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAssetFilter('ETFS')}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md font-semibold transition-all whitespace-nowrap ${
+                  assetFilter === 'ETFS'
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="View ETFs and Index Funds in the table"
+              >
+                <BarChart2 className="w-3.5 h-3.5 text-purple-400" />
+                <span>ETFs</span>
+                <span className="text-[10px] font-mono text-purple-300 bg-purple-950 px-1.5 py-0.5 rounded border border-purple-800/80 ml-1">
+                  {totalEtfsCount}
                 </span>
               </button>
               <button
@@ -1029,7 +1076,7 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
                 title="View only Commodities in the table"
               >
                 <Wheat className="w-3.5 h-3.5 text-amber-400" />
-                <span>Only Commodities</span>
+                <span>Commodities</span>
                 <span className="text-[10px] font-mono text-amber-300 bg-amber-950 px-1.5 py-0.5 rounded border border-amber-800/80 ml-1">
                   {totalCommoditiesCount}
                 </span>
