@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { VolatilityScanResult, StockQuote, TimePeriod } from '../services/marketScanner';
 import { CommodityScanResult, CommodityQuote } from '../services/commodityScanner';
-import { AllMarketScanResult } from '../services/allMarketScanner';
+import { AllMarketScanResult, getInitialAllMarketMovers } from '../services/allMarketScanner';
 
 export interface UnifiedMover {
   id: string;
@@ -81,10 +81,10 @@ export const GainersLosersRadar: React.FC<GainersLosersRadarProps> = ({
   const unifiedMovers: UnifiedMover[] = useMemo(() => {
     const list: UnifiedMover[] = [];
 
-    // 1. Stocks from ALL OF THE MARKET (NYSE, NASDAQ, AMEX)
+    // 1. Stocks from ALL OF THE MARKET (NYSE, NASDAQ, AMEX full market screener)
     const marketStocks = (allMarketScanResult && allMarketScanResult.stocks && allMarketScanResult.stocks.length > 0)
       ? allMarketScanResult.stocks
-      : (scanResult?.topVolatileStocks || []);
+      : getInitialAllMarketMovers(period).stocks;
 
     marketStocks.forEach((stock) => {
       list.push({

@@ -14,7 +14,7 @@ import { LogsConsole } from './components/LogsConsole';
 import { workerSimulatorInstance } from './services/workerSimulator';
 import { VolatilityScanResult, TimePeriod } from './services/marketScanner';
 import { CommodityScanResult } from './services/commodityScanner';
-import { AllMarketScanResult } from './services/allMarketScanner';
+import { AllMarketScanResult, getInitialAllMarketMovers } from './services/allMarketScanner';
 import { kvNamespaceInstance } from './services/kvStore';
 import {
   Flame,
@@ -31,7 +31,7 @@ export default function App() {
   const [scanResult, setScanResult] = useState<VolatilityScanResult | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [commodityScanResult, setCommodityScanResult] = useState<CommodityScanResult | null>(null);
-  const [allMarketScanResult, setAllMarketScanResult] = useState<AllMarketScanResult | null>(null);
+  const [allMarketScanResult, setAllMarketScanResult] = useState<AllMarketScanResult>(() => getInitialAllMarketMovers('day'));
   const [isCommodityScanning, setIsCommodityScanning] = useState(false);
   const [selectedKeyForKV, setSelectedKeyForKV] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
